@@ -2,7 +2,7 @@
 
 Usage (from the project root)::
 
-    python find-new-packages.py
+    python find-new-python-packages.py
 
 The script reads a ``new.txt`` file (one package name per line, no versions)
 and compares it against ``python_requirements.txt``. It prints any packages

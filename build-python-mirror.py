@@ -2,7 +2,7 @@
 
 Usage (from the project root)::
 
-    python build-local-mirror.py
+    python build-python-mirror.py
 
 The script is tailored for Windows Server environments. It temporarily removes
 ``PIP_NO_INDEX`` from the current environment and downloads all packages listed

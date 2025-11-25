@@ -2,7 +2,7 @@
 
 Usage (from the project root)::
 
-    python freeze_packages.py
+    python freeze-python-packages.py
 
 This script is intended for Windows Server 2019 environments where the
 repository lives at ``C:\\admin\\package-management``. It shells out to
