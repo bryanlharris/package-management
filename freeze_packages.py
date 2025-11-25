@@ -18,8 +18,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-from event_log import log_event
-
 OUTPUT_PATH = Path(__file__).resolve().parent / "python_requirements.txt"
 
 
@@ -42,7 +40,6 @@ def freeze_packages(output_path: Path) -> None:
     )
 
     output_path.write_text(result.stdout, encoding="utf-8")
-    log_event(f"package-management: froze environment to {output_path.name}")
 
 
 
