@@ -20,21 +20,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-from event_log import log_event
-
 DEFAULT_REQUIREMENTS = Path(__file__).resolve().parent / "python_requirements.txt"
 DEFAULT_MIRROR = Path(r"C:\\admin\\python_mirror")
 
 
-def run_command(
-    command: list[str], description: str, *, env: dict[str, str] | None = None
-) -> subprocess.CompletedProcess[str]:
+def run_command(command: list[str], description: str, *, env: dict[str, str] | None = None) -> None:
     """Run a command and raise a descriptive error on failure."""
 
-    result = subprocess.run(command, check=False, env=env, text=True)
-    if result.returncode != 0:
-        raise SystemExit(f"Failed to {description}: exited with {result.returncode}")
-    return result
+    try:
+        subprocess.run(command, check=True, env=env)
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(f"Failed to {description}: {exc}") from exc
 
 
 def ensure_windows() -> None:
@@ -82,11 +78,7 @@ def install_baseline(requirements_path: Path, mirror_path: Path) -> None:
         "--no-deps",
     ]
 
-    result = run_command(command, "install packages from the local mirror", env=env)
-    if result.returncode == 0:
-        log_event(
-            "package-management: installed baseline packages from local mirror",
-        )
+    run_command(command, "install packages from the local mirror", env=env)
 
 
 def main() -> None:

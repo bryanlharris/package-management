@@ -21,8 +21,6 @@ import urllib.request
 from pathlib import Path
 from typing import Iterable
 
-from event_log import log_event
-
 
 def extract_package_names(lines: Iterable[str]) -> set[str]:
     """Normalize package identifiers from requirement-style file contents."""
@@ -104,9 +102,6 @@ def main() -> None:
 
         handle.write("\n".join(additions))
         handle.write("\n")
-    log_event(
-        f"package-management: appended {len(additions)} new packages to {requirements_path.name}",
-    )
 
 
 if __name__ == "__main__":
