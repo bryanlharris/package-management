@@ -32,6 +32,10 @@ def pip_show(name: str) -> dict[str, str]:
     return {field: rows.get(field, "") for field in FIELDS}
 
 
+def strip_non_ascii(text: str) -> str:
+    return text.encode("ascii", "ignore").decode("ascii")
+
+
 def configure_stdout(stream: TextIO) -> TextIO:
     try:
         stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
@@ -48,7 +52,8 @@ def main() -> None:
     writer.writerow(["name", "version", *CONSTANTS, "summary", "url", "location"])
     for name in reqs:
         info = pip_show(name)
-        writer.writerow([info["Name"] or name, info["Version"], *CONSTANTS, info["Summary"], info["Home-page"], info["Location"]])
+        row = [info["Name"] or name, info["Version"], *CONSTANTS, info["Summary"], info["Home-page"], info["Location"]]
+        writer.writerow([strip_non_ascii(value) for value in row])
 
 
 if __name__ == "__main__":
