@@ -34,7 +34,8 @@ def pip_show(name: str) -> dict[str, str]:
 
 def configure_stdout(stream: TextIO) -> TextIO:
     try:
-        return stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+        return stream
     except AttributeError:
         # Python versions before 3.7 do not support reconfigure.
         return io.TextIOWrapper(stream.buffer, encoding="utf-8", errors="replace")
