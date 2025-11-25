@@ -7,6 +7,7 @@ and mirror dependencies alongside your code.
 - `build-python-mirror.py` — mirror packages from `python_requirements.txt` into `C:\\admin\\python_mirror` on Windows.
 - `find-new-python-packages.py` — list packages in a new list that are missing from `python_requirements.txt`.
 - `install-python-baseline.py` — install packages from `python_requirements.txt` using the `C:\\admin\\python_mirror` baseline.
+- `print-python-csv.py` — emit a tab-separated report from `python_requirements.txt`.
 
 ## Usage
 Run the mirror initialization from the repository root on Windows hosts:
@@ -31,4 +32,10 @@ Check for any packages in `new.txt` (one package name per line) that are not alr
 
 ```powershell
 python find-new-python-packages.py
+```
+
+Export a tab-separated report for the packages listed in `python_requirements.txt`:
+
+```powershell
+python print-python-csv.py > report.tsv
 ```
