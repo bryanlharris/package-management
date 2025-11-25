@@ -2,7 +2,7 @@
 
 Usage (from the project root)::
 
-    python install-baseline.py
+    python install-python-baseline.py
 
 The script is intended for Windows environments where the package mirror lives
 at ``C:\\admin\\python_mirror`` and the requirements file is maintained in this
