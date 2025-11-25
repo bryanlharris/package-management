@@ -19,17 +19,21 @@ import subprocess
 import sys
 from pathlib import Path
 
+from event_log import log_event
+
 DEFAULT_REQUIREMENTS = Path(__file__).resolve().parent / "python_requirements.txt"
 DEFAULT_DESTINATION = Path(r"C:\\admin\\python_mirror")
 
 
-def run_command(command: list[str], description: str, *, env: dict[str, str] | None = None) -> None:
+def run_command(
+    command: list[str], description: str, *, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """Run a command, surfacing errors with helpful context."""
 
-    try:
-        subprocess.run(command, check=True, env=env)
-    except subprocess.CalledProcessError as exc:
-        raise SystemExit(f"Failed to {description}: {exc}") from exc
+    result = subprocess.run(command, check=False, env=env, text=True)
+    if result.returncode != 0:
+        raise SystemExit(f"Failed to {description}: exited with {result.returncode}")
+    return result
 
 
 def ensure_windows() -> None:
@@ -58,7 +62,13 @@ def initialize_local_mirror(requirements_path: Path, destination: Path) -> None:
         "-d",
         str(destination),
     ]
-    run_command(download_command, "download packages into the local mirror", env=env)
+    result = run_command(
+        download_command, "download packages into the local mirror", env=env
+    )
+    if result.returncode == 0:
+        log_event(
+            f"package-management: built local pip mirror at {destination} using {requirements_path.name}",
+        )
 
 
 def main() -> None:
