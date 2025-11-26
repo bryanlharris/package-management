@@ -1,1 +1,0 @@
-# List one R package name per line. Versions will be resolved automatically.
