@@ -8,6 +8,7 @@ and mirror dependencies alongside your code.
 - `build-r-mirror.R` — mirror Windows binary packages from `r_requirements.txt` into `C:\\admin\\r_mirror` on Windows.
 - `find-new-python-packages.py` — list packages in a new list that are missing from `python_requirements.txt`.
 - `install-python-baseline.py` — install packages from `python_requirements.txt` using the `C:\\admin\\python_mirror` baseline.
+- `install-r-baseline.R` — install packages from `r_requirements.txt` using the `C:\\admin\\r_mirror` baseline.
 - `print-python-csv.ps1` — emit a tab-separated report from `python_requirements.txt`.
 
 ## Usage
@@ -28,6 +29,7 @@ Install the baseline requirements from the local mirror (requires an elevated sh
 
 ```powershell
 python install-python-baseline.py
+Rscript install-r-baseline.R
 ```
 
 Check for any packages in `new.txt` (one package name per line) that are not already captured in `python_requirements.txt`:
