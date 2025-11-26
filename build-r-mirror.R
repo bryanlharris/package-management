@@ -63,11 +63,15 @@ mirror_packages <- function(requirements_path, destination) {
 
   prepare_repos()
 
-  if (!dir.exists(destination)) {
-    dir.create(destination, recursive = TRUE, showWarnings = FALSE)
+  r_version <- paste(R.version$major, sub("\\..*$", "", R.version$minor), sep = ".")
+  mirror_dir <- file.path(destination, "bin", "windows", "contrib", r_version)
+
+  if (!dir.exists(mirror_dir)) {
+    dir.create(mirror_dir, recursive = TRUE, showWarnings = FALSE)
   }
 
-  download.packages(pkgs = packages, destdir = destination, type = "win.binary")
+  download.packages(pkgs = packages, destdir = mirror_dir, type = "win.binary")
+  tools::write_PACKAGES(dir = mirror_dir, type = "win.binary")
 }
 
 mirror_packages(default_requirements, default_destination)
