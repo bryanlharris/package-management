@@ -10,6 +10,7 @@ and mirror dependencies alongside your code.
 - `install-python-baseline.py` — install packages from `python_requirements.txt` using the `C:\\admin\\python_mirror` baseline.
 - `install-r-baseline.R` — install packages from `r_requirements.txt` using the `C:\\admin\\r_mirror` baseline.
 - `print-python-csv.ps1` — emit a tab-separated report from `python_requirements.txt`.
+- `print-r-csv.R` — emit a tab-separated report from `r_requirements.txt` using the local R mirror.
 
 ## Usage
 Run the mirror initialization from the repository root on Windows hosts:
@@ -42,4 +43,10 @@ Export a tab-separated report for the packages listed in `python_requirements.tx
 
 ```powershell
 ./print-python-csv.ps1 > report.tsv
+```
+
+Export a tab-separated report for the packages listed in `r_requirements.txt` using the local mirror metadata:
+
+```powershell
+Rscript print-r-csv.R > r-report.tsv
 ```
