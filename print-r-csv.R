@@ -118,6 +118,17 @@ cran_package_url <- function(name) {
   paste0("https://cran.r-project.org/web/packages/", name, "/index.html")
 }
 
+strip_html <- function(text) {
+  if (!length(text)) {
+    return("")
+  }
+
+  stripped <- gsub("<[^>]+>", " ", text)
+  stripped <- gsub("&nbsp;", " ", stripped, fixed = TRUE)
+  stripped <- gsub("\\s+", " ", stripped)
+  trimws(stripped)
+}
+
 fetch_cran_summary <- function(name) {
   url <- cran_package_url(name)
   lines <- tryCatch(readLines(url, warn = FALSE), error = function(e) character(0))
@@ -126,19 +137,14 @@ fetch_cran_summary <- function(name) {
     return("")
   }
 
-  header <- lines[grepl("<h2", lines, fixed = FALSE)]
+  collapsed <- paste(lines, collapse = " ")
+  match <- regmatches(collapsed, regexpr("<h2[^>]*>.*?</h2>", collapsed))
 
-  if (!length(header)) {
+  if (!length(match) || !nchar(match[[1]])) {
     return("")
   }
 
-  summary <- trimws(sub(".*<h2[^>]*>([^<]*)<.*", "\\1", header[[1]]))
-
-  if (!nchar(summary)) {
-    return("")
-  }
-
-  summary
+  strip_html(match[[1]])
 }
 
 print_report <- function(requirements_path, mirror_path) {
@@ -178,12 +184,18 @@ print_report <- function(requirements_path, mirror_path) {
     entry <- matching[row, ]
     name <- entry$Package
     version <- entry$Version
-    url <- cran_package_url(name)
+    url <- first_non_empty(
+      c(
+        first_non_empty(strsplit(safe_field(entry, "URL"), "[,\n ]")[[1]]),
+        first_non_empty(strsplit(cran_field(cran_metadata, name, "URL"), "[,\n ]")[[1]]),
+        cran_package_url(name)
+      )
+    )
     summary <- first_non_empty(
       c(
-        fetch_cran_summary(name),
         safe_field(entry, "Title"),
-        cran_field(cran_metadata, name, "Title")
+        cran_field(cran_metadata, name, "Title"),
+        fetch_cran_summary(name)
       )
     )
     install_base <- installed$LibPath[installed$Package == name]
