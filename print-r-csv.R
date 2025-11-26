@@ -114,6 +114,33 @@ first_non_empty <- function(values) {
   values[[1]]
 }
 
+cran_package_url <- function(name) {
+  paste0("https://cran.r-project.org/web/packages/", name, "/index.html")
+}
+
+fetch_cran_summary <- function(name) {
+  url <- cran_package_url(name)
+  lines <- tryCatch(readLines(url, warn = FALSE), error = function(e) character(0))
+
+  if (!length(lines)) {
+    return("")
+  }
+
+  header <- lines[grepl("<h2", lines, fixed = FALSE)]
+
+  if (!length(header)) {
+    return("")
+  }
+
+  summary <- trimws(sub(".*<h2[^>]*>([^<]*)<.*", "\\1", header[[1]]))
+
+  if (!nchar(summary)) {
+    return("")
+  }
+
+  summary
+}
+
 print_report <- function(requirements_path, mirror_path) {
   ensure_windows()
   packages <- read_requirements(requirements_path)
@@ -151,8 +178,14 @@ print_report <- function(requirements_path, mirror_path) {
     entry <- matching[row, ]
     name <- entry$Package
     version <- entry$Version
-    summary <- first_non_empty(c(safe_field(entry, "Title"), cran_field(cran_metadata, name, "Title")))
-    url <- first_non_empty(c(safe_field(entry, "URL"), cran_field(cran_metadata, name, "URL")))
+    url <- cran_package_url(name)
+    summary <- first_non_empty(
+      c(
+        fetch_cran_summary(name),
+        safe_field(entry, "Title"),
+        cran_field(cran_metadata, name, "Title")
+      )
+    )
     install_base <- installed$LibPath[installed$Package == name]
     location <- if (length(install_base)) {
       normalizePath(file.path(install_base[[1]], name), winslash = "\\", mustWork = FALSE)
@@ -165,3 +198,4 @@ print_report <- function(requirements_path, mirror_path) {
 }
 
 print_report(default_requirements, default_mirror)
+
