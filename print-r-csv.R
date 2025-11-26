@@ -17,6 +17,9 @@ get_script_dir <- function() {
 
 default_requirements <- file.path(get_script_dir(), "r_requirements.txt")
 default_mirror <- normalizePath("C:/admin/r_mirror", winslash = "\\", mustWork = FALSE)
+primary_library <- function() {
+  normalizePath(.Library, winslash = "\\", mustWork = FALSE)
+}
 
 ensure_windows <- function() {
   if (!identical(tolower(Sys.info()[["sysname"]]), "windows")) {
@@ -33,6 +36,16 @@ read_requirements <- function(path) {
   entries <- trimws(entries)
   entries <- entries[entries != "" & !grepl("^#", entries)]
   unique(entries)
+}
+
+prepare_repos <- function() {
+  repos <- getOption("repos")
+
+  if (!length(repos) || is.na(repos["CRAN"]) || repos["CRAN"] == "@CRAN@") {
+    repos["CRAN"] <- "https://cloud.r-project.org"
+  }
+
+  options(repos = repos)
 }
 
 mirror_dir <- function(base_path) {
@@ -56,6 +69,27 @@ load_package_metadata <- function(mirror_path) {
   as.data.frame(entries, stringsAsFactors = FALSE)
 }
 
+load_cran_metadata <- function(packages) {
+  prepare_repos()
+  available <- available.packages(fields = c("Title", "URL"))
+
+  available[rownames(available) %in% packages, , drop = FALSE]
+}
+
+cran_field <- function(metadata, package, field) {
+  if (!nrow(metadata) || !package %in% rownames(metadata)) {
+    return("")
+  }
+
+  value <- metadata[package, field]
+
+  if (is.null(value) || is.na(value) || !length(value) || value == "") {
+    return("")
+  }
+
+  value
+}
+
 safe_field <- function(entry, field) {
   if (!field %in% names(entry)) {
     return("")
@@ -68,6 +102,16 @@ safe_field <- function(entry, field) {
   }
 
   value
+}
+
+first_non_empty <- function(values) {
+  values <- values[!is.na(values) & values != ""]
+
+  if (!length(values)) {
+    return("")
+  }
+
+  values[[1]]
 }
 
 print_report <- function(requirements_path, mirror_path) {
@@ -91,6 +135,11 @@ print_report <- function(requirements_path, mirror_path) {
   }
 
   metadata <- load_package_metadata(mirror)
+  cran_metadata <- load_cran_metadata(packages)
+  installed <- as.data.frame(
+    installed.packages(lib.loc = primary_library(), fields = c("Package", "LibPath")),
+    stringsAsFactors = FALSE
+  )
   matching <- metadata[metadata$Package %in% packages, , drop = FALSE]
   missing <- setdiff(packages, matching$Package)
 
@@ -102,10 +151,16 @@ print_report <- function(requirements_path, mirror_path) {
     entry <- matching[row, ]
     name <- entry$Package
     version <- entry$Version
-    summary <- safe_field(entry, "Title")
-    url <- safe_field(entry, "URL")
+    summary <- first_non_empty(c(safe_field(entry, "Title"), cran_field(cran_metadata, name, "Title")))
+    url <- first_non_empty(c(safe_field(entry, "URL"), cran_field(cran_metadata, name, "URL")))
+    install_base <- installed$LibPath[installed$Package == name]
+    location <- if (length(install_base)) {
+      normalizePath(file.path(install_base[[1]], name), winslash = "\\", mustWork = FALSE)
+    } else {
+      mirror
+    }
 
-    cat(sprintf("%s\t%s\tCRAN\tReviewer\tInstaller\t%s\t%s\t%s\n", name, version, summary, url, mirror))
+    cat(sprintf("%s\t%s\tCRAN\tReviewer\tInstaller\t%s\t%s\t%s\n", name, version, summary, url, location))
   }
 }
 
