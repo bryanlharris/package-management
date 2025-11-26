@@ -75,9 +75,26 @@ install_baseline <- function(requirements_path, mirror_path) {
   ensure_windows()
   packages <- read_requirements(requirements_path)
 
+  base_packages <- rownames(installed.packages(priority = c("base", "recommended")))
+  requested <- packages
+  packages <- setdiff(packages, base_packages)
+
   if (!length(packages)) {
-    message(sprintf("No packages listed in %s; nothing to install.", requirements_path))
+    message(sprintf(
+      "No packages to install after excluding base/recommended packages from %s.",
+      requirements_path
+    ))
     return(invisible(NULL))
+  }
+
+  skipped <- setdiff(requested, packages)
+
+  if (length(skipped)) {
+    message(sprintf(
+      "Skipping %d base/recommended package(s): %s",
+      length(skipped),
+      paste(skipped, collapse = ", ")
+    ))
   }
 
   repo <- resolve_local_repo(mirror_path)
