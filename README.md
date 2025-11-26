@@ -50,3 +50,12 @@ Export a tab-separated report for the packages listed in `r_requirements.txt` us
 ```powershell
 Rscript print-r-csv.R > r-report.tsv
 ```
+
+## Alignment with FedRAMP/NIST-style controls
+These utilities support common control objectives often found in FedRAMP and NIST guidance:
+
+- **Configuration baselines (e.g., CM-2, CM-6):** `python_requirements.txt` and `r_requirements.txt` capture explicit dependency baselines, with scripts to regenerate frozen environments from real installs.
+- **Least functionality / allowlisting (e.g., CM-7, SI-7(10)):** Installation scripts only pull from locally mirrored artifacts (Windows `C:\\admin\\python_mirror` and `C:\\admin\\r_mirror`) and require Windows hosts (with admin elevation for Python), constraining software sources and scope.
+- **Supply chain risk management / software integrity (e.g., NIST SP 800-161r1, NIST SP 800-218):** Mirror-building downloads vetted versions into organization-controlled directories for offline installs, reducing exposure to tampered upstream artifacts and ensuring content matches the specified baseline.
+- **Change control and auditability (e.g., CM-3, SA-10):** `find-new-python-packages.py` normalizes and records new dependencies into the baseline file rather than permitting ad-hoc installs, creating a reviewable change point.
+- **Asset reporting / inventory (e.g., CM-8, SI-4(14)):** `print-python-csv.ps1` and `print-r-csv.R` generate inventories (package, version, source URL, install location) from the mirrored content to feed review or inventory processes.
