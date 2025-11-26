@@ -1,10 +1,11 @@
 # Package Management Utilities
-This repository contains helper scripts for managing Python package requirements in restricted environments. Use them to capture
+This repository contains helper scripts for managing Python and R package requirements in restricted environments. Use them to capture
 and mirror dependencies alongside your code.
 
 ## Files
 - `freeze-python-packages.py` — save frozen dependencies to `python_requirements.txt`.
 - `build-python-mirror.py` — mirror packages from `python_requirements.txt` into `C:\\admin\\python_mirror` on Windows.
+- `build-r-mirror.R` — mirror Windows binary packages from `r_requirements.txt` into `C:\\admin\\r_mirror` on Windows.
 - `find-new-python-packages.py` — list packages in a new list that are missing from `python_requirements.txt`.
 - `install-python-baseline.py` — install packages from `python_requirements.txt` using the `C:\\admin\\python_mirror` baseline.
 - `print-python-csv.ps1` — emit a tab-separated report from `python_requirements.txt`.
@@ -14,6 +15,7 @@ Run the mirror initialization from the repository root on Windows hosts:
 
 ```powershell
 python build-python-mirror.py
+Rscript build-r-mirror.R
 ```
 
 After the packages are mirrored, restore a requirements snapshot if needed:
