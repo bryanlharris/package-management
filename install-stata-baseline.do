@@ -14,8 +14,6 @@ version 17.0
 local requirements "`c(pwd)'\stata_requirements.txt"
 local mirror "C:\admin\stata_mirror"
 local target "C:\Program Files\Stata18\shared_ado"
-local logdir "C:\admin\temp"
-local logfile "`logdir'\install-stata-baseline.log"
 
 if (lower(c(os)) != "windows") {
     display as error "Windows only."
@@ -27,9 +25,6 @@ if (_rc) {
     display as error "Missing: `requirements'"
     exit 601
 }
-
-log close _all
-log using "`logfile'", replace text
 
 sysdir set PLUS "`target'"
 
@@ -56,7 +51,5 @@ quietly forvalues i = 1/`=_N' {
         exit _rc
     }
 }
-
-log close
 
 exit 0
