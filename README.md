@@ -19,8 +19,23 @@ Run the mirror initialization from the repository root on Windows hosts:
 ```powershell
 python build-python-mirror.py
 Rscript build-r-mirror.R
-stata-se -b do build-stata-mirror.do
+# In Stata, right-click build-stata-mirror.do and choose "Do" to run it
+# (or use your Stata batch CLI, e.g., `stata-se -b do build-stata-mirror.do`, if configured).
 ```
+
+> The Stata requirements file (`stata_requirements.txt`) must be a CSV with a header row that names
+> each column. Use `packagename` and `url` as the headers so that the Stata script can identify the
+> package names and their download URLs (the script now explicitly reads the first line as headers
+> with `varnames(1)`), for example:
+>
+> ```csv
+> packagename,url
+> mypackage,https://example.org/stata/
+> ```
+>
+> If Stata still reports `v1`/`v2` column names, ensure the file is saved as a plain CSV
+> (comma-separated, no extra leading rows or UTF-8 BOM) and that the first line exactly matches
+> `packagename,url`.
 
 After the packages are mirrored, restore a requirements snapshot if needed:
 
