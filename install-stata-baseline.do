@@ -28,15 +28,6 @@ if (_rc) {
     exit 601
 }
 
-// Confirm the mirror directory exists (fileexists() only checks files)
-if (!direxists("`mirror'")) {
-    display as error "Local mirror not found at `mirror'"
-    exit 601
-}
-
-capture mkdir "`target'"
-
-capture mkdir "`logdir'"
 log close _all
 log using "`logfile'", replace text
 
