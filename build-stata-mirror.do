@@ -1,20 +1,21 @@
 /***************************************************************************************************
-* Prepare a local mirror of Stata packages listed in `stata_requirements.txt`.
-*
-* Usage (from the project root on Windows):
-*
-*   stata-se -b do build-stata-mirror.do
-*   // or: StataMP-64 -b do build-stata-mirror.do
-*
-* The script downloads each package into `C:\admin\stata_mirror` using `net install`.
-* Each requirement entry should provide a package name and a base URL (CSV with headers
-* `packagename` and `url`).
-***************************************************************************************************/
+ * Prepare a local mirror of Stata packages listed in `stata_requirements.txt`.
+ *
+ * Usage (from the project root on Windows):
+ *
+ *   Right-click the file and choose "Do" in Stata (or run via Stata's batch CLI if available).
+ *
+ * The script downloads each package into `C:\admin\stata_mirror` using `net install`.
+ * Each requirement entry should provide a package name and a base URL (CSV with headers
+ * `packagename` and `url`).
+ ***************************************************************************************************/
 
 version 17.0
 
 local requirements "`c(pwd)'\stata_requirements.txt"
 local mirror "C:\admin\stata_mirror"
+local logdir "C:\admin\temp"
+local logfile "`logdir'\build-stata-mirror.log"
 
 if (lower(c(os)) != "windows") {
     display as error "Windows only."
@@ -29,9 +30,13 @@ if (_rc) {
 
 capture mkdir "`mirror'"
 
+capture mkdir "`logdir'"
+log close _all
+log using "`logfile'", replace text
+
 sysdir set PLUS "`mirror'"
 
-import delimited using "`requirements'", clear stringcols(_all)
+import delimited using "`requirements'", clear stringcols(_all) varnames(1)
 
 rename packagename pkg
 rename url baseurl
@@ -56,5 +61,7 @@ quietly forvalues i = 1/`=_N' {
         exit _rc
     }
 }
+
+log close
 
 exit 0
