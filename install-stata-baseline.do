@@ -28,7 +28,8 @@ if (_rc) {
     exit 601
 }
 
-if (!fileexists("`mirror'")) {
+// Confirm the mirror directory exists (fileexists() only checks files)
+if (!direxists("`mirror'")) {
     display as error "Local mirror not found at `mirror'"
     exit 601
 }
