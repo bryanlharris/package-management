@@ -7,6 +7,7 @@ and mirror dependencies alongside your code.
 - `build-python-mirror.py` — mirror packages from `python_requirements.txt` into `C:\\admin\\python_mirror` on Windows.
 - `build-r-mirror.R` — mirror Windows binary packages from `r_requirements.txt` into `C:\\admin\\r_mirror` on Windows.
 - `build-stata-mirror.do` — mirror Stata packages from `stata_requirements.txt` into `C:\admin\stata_mirror` on Windows using `net install`.
+- `install-stata-baseline.do` — install Stata packages from `stata_requirements.txt` using the `C:\\admin\\stata_mirror` baseline.
 - `find-new-python-packages.py` — list packages in a new list that are missing from `python_requirements.txt`.
 - `install-python-baseline.py` — install packages from `python_requirements.txt` using the `C:\\admin\\python_mirror` baseline.
 - `install-r-baseline.R` — install packages from `r_requirements.txt` using the `C:\\admin\\r_mirror` baseline.
@@ -48,6 +49,8 @@ Install the baseline requirements from the local mirror (requires an elevated sh
 ```powershell
 python install-python-baseline.py
 Rscript install-r-baseline.R
+# In Stata, right-click install-stata-baseline.do and choose "Do" to run it
+# (or use your Stata batch CLI, e.g., `stata-se -b do install-stata-baseline.do`, if configured).
 ```
 
 Check for any packages in `new.txt` (one package name per line) that are not already captured in `python_requirements.txt`:
