@@ -6,7 +6,7 @@ and mirror dependencies alongside your code.
 - `freeze-python-packages.py` — save frozen dependencies to `python_requirements.txt`.
 - `build-python-mirror.py` — mirror packages from `python_requirements.txt` into `C:\\admin\\python_mirror` on Windows.
 - `build-r-mirror.R` — mirror Windows binary packages from `r_requirements.txt` into `C:\\admin\\r_mirror` on Windows.
-- `build-stata-mirror.py` — clone Stata package folders from `stata_requirements.txt` directly into `C:\\admin\\stata_mirror` on Windows (no `stata.trk`).
+- `install-stata-baseline.do` — install Stata packages from `stata_requirements.txt` into the shared ado directory on Windows.
 - `find-new-python-packages.py` — list packages in a new list that are missing from `python_requirements.txt`.
 - `install-python-baseline.py` — install packages from `python_requirements.txt` using the `C:\\admin\\python_mirror` baseline.
 - `install-r-baseline.R` — install packages from `r_requirements.txt` using the `C:\\admin\\r_mirror` baseline.
@@ -19,7 +19,7 @@ Run the mirror initialization from the repository root on Windows hosts:
 ```powershell
 python build-python-mirror.py
 Rscript build-r-mirror.R
-python build-stata-mirror.py
+# Run install-stata-baseline.do in Stata (right-click and choose "Do" on Windows)
 ```
 
 > The Stata requirements file (`stata_requirements.txt`) must be a CSV with a header row that names
