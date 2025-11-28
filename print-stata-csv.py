@@ -96,6 +96,11 @@ def format_row(
 ) -> str:
     """Format a TSV row using the shared column order."""
 
+    def sanitize(field: object) -> str:
+        """Coerce fields to strings and strip embedded tabs."""
+
+        return str(field).replace("\t", " ")
+
     columns = [
         package,
         version,
@@ -104,11 +109,11 @@ def format_row(
         "Installer",
         description,
         url,
-        str(location),
+        location,
         ssc_found,
         ssc_url,
     ]
-    return "\t".join(columns)
+    return "\t".join(sanitize(field) for field in columns)
 
 
 def resolve_location(shared_root: Path, ado_path: Optional[Path]) -> Path:
