@@ -7,7 +7,7 @@
  *
  * The script installs packages listed in `stata_requirements.txt` from the local mirror at
  * `C:\admin\stata_mirror`. Each package is expected to live in its own subfolder named after the
- * package (e.g., `C:\admin\stata_mirror\rdmulti\...`) that was created by `direct-clone-stata-mirror.py`.
+ * package (e.g., `C:\admin\stata_mirror\rdmulti\...`) that was created by `build-stata-mirror.py`.
  * No remote URLs are used during installation.
  ***************************************************************************************************/
 
