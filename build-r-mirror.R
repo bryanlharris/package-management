@@ -43,13 +43,7 @@ read_requirements <- function(path) {
 }
 
 prepare_repos <- function() {
-  repos <- getOption("repos")
-
-  if (!length(repos) || is.na(repos["CRAN"]) || repos["CRAN"] == "@CRAN@") {
-    repos["CRAN"] <- "https://cloud.r-project.org"
-  }
-
-  options(repos = repos)
+  options(repos = c(CRAN = "https://cloud.r-project.org"))
 }
 
 mirror_packages <- function(requirements_path, destination) {
