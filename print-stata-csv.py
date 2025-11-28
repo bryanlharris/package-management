@@ -8,7 +8,6 @@ installer, summary, URL, install location, SSC presence, and SSC URL.
 Metadata is derived from the shared ado tree when available.
 """
 
-import argparse
 import os
 import requests
 from pathlib import Path
@@ -140,18 +139,5 @@ def print_report(shared_root: Path) -> None:
 
         print(format_row(name, version, description, "", location, ssc_found, ssc_url))
 
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Print Stata package metadata as TSV")
-    parser.add_argument(
-        "--shared-ado",
-        type=Path,
-        default=DEFAULT_SHARED_ADO,
-        help="Root of the shared ado directory",
-    )
-    return parser.parse_args()
-
-
 if __name__ == "__main__":
-    args = parse_args()
-    print_report(args.shared_ado)
+    print_report(DEFAULT_SHARED_ADO)
