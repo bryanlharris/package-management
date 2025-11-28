@@ -5,16 +5,19 @@ Emit a tab-separated report for every Stata package found in the shared ado tree
 The output mirrors the column order used by the Python and R inventory scripts
 and appends SSC lookup details: package name, version, source, reviewer,
 installer, summary, URL, install location, SSC presence, and SSC URL.
-Metadata is derived from the shared ado tree when available.
+Metadata is sourced from `ssc describe` output for each ado package.
 """
 
+import io
 import os
-import requests
+from contextlib import redirect_stdout
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, Optional
+
+from pystata import config, stata
 
 DEFAULT_SHARED_ADO = Path(r"C:/Program Files/Stata18/shared_ado")
-SUMMARY_LINE_LIMIT = 30
+STATA_EXECUTABLE = Path(r"C:/Program Files/Stata18/StataMP-64.exe")
 
 
 def ensure_windows() -> None:
@@ -33,55 +36,57 @@ def scan_ado_files(base_path: Path) -> Iterable[Path]:
                 yield Path(root) / filename
 
 
-def extract_local_metadata(filepath: Path) -> Dict[str, Optional[str]]:
-    """Extract version and description metadata from the ado header comments."""
+def init_pystata() -> None:
+    """Configure pystata to use the Stata MP executable."""
 
-    metadata: Dict[str, Optional[str]] = {"version": None, "description": None}
+    config.init(executable=str(STATA_EXECUTABLE))
 
+
+def run_ssc_describe(package: str) -> str:
+    """Run `ssc describe` for a package and capture the resulting log."""
+
+    buffer = io.StringIO()
     try:
-        with filepath.open("r", encoding="latin-1", errors="ignore") as handle:
-            lines = handle.readlines()[:SUMMARY_LINE_LIMIT]
-    except OSError:
-        return metadata
+        with redirect_stdout(buffer):
+            stata.run(f"capture noisily ssc describe {package}", echo=False, quietly=True)
+    except Exception:
+        return ""
+
+    return buffer.getvalue()
+
+
+def parse_ssc_log(log: str) -> Dict[str, Optional[str]]:
+    """Extract metadata fields from `ssc describe` output."""
+
+    metadata: Dict[str, Optional[str]] = {
+        "version": None,
+        "description": None,
+        "url": None,
+        "ssc_found": None,
+        "ssc_url": None,
+    }
+
+    lines = [line.strip() for line in log.splitlines() if line.strip()]
 
     for line in lines:
-        stripped = line.strip()
-        lower = stripped.lower()
+        if " from http" in line.lower() and "package" in line.lower():
+            parts = line.split(" from ", maxsplit=1)
+            if len(parts) == 2:
+                metadata["ssc_url"] = parts[1].strip()
+                metadata["ssc_found"] = "true"
+        if line.lower().startswith("distribution-date"):
+            metadata["version"] = line.split(":", maxsplit=1)[-1].strip()
 
-        if stripped.startswith("*") and not metadata["description"]:
-            metadata["description"] = stripped.lstrip("*").strip()
+    if metadata["description"] is None:
+        for idx, line in enumerate(lines):
+            if line.upper() == "TITLE" and idx + 1 < len(lines):
+                metadata["description"] = lines[idx + 1].strip()
+                break
 
-        if "version" in lower and not stripped.startswith("*"):
-            parts = lower.split()
-            for idx, token in enumerate(parts):
-                if token == "version" and idx + 1 < len(parts):
-                    metadata["version"] = parts[idx + 1]
-                    break
-
-        if metadata["version"] and metadata["description"]:
-            break
+    if metadata["ssc_url"]:
+        metadata["url"] = metadata["ssc_url"]
 
     return metadata
-
-
-def query_ssc(package: str, timeout: float = 5.0) -> Tuple[str, str]:
-    """Return SSC presence and URL for the given package, falling back to blanks on error."""
-
-    url = (
-        "https://ideas.repec.org/cgi-bin/htsearch?cmd=Search%21&form=extended&m=all&sp=1&wm=wrd&q="
-        f"{package}"
-    )
-
-    try:
-        response = requests.get(url, timeout=timeout)
-    except (OSError, requests.RequestException):
-        return "", ""
-
-    if response.status_code != 200:
-        return "", ""
-
-    found = package.lower() in response.text.lower()
-    return ("true" if found else "false"), url
 
 
 def format_row(
@@ -99,7 +104,7 @@ def format_row(
     def sanitize(field: object) -> str:
         """Coerce fields to strings and strip embedded tabs."""
 
-        return str(field).replace("\t", " ")
+        return str(field).replace("\t", " ").strip()
 
     columns = [
         package,
@@ -127,6 +132,7 @@ def resolve_location(shared_root: Path, ado_path: Optional[Path]) -> Path:
 
 def print_report(shared_root: Path) -> None:
     ensure_windows()
+    init_pystata()
 
     if not shared_root.exists():
         raise SystemExit(
@@ -135,14 +141,17 @@ def print_report(shared_root: Path) -> None:
 
     for ado_path in scan_ado_files(shared_root):
         name = ado_path.stem
-        meta = extract_local_metadata(ado_path)
-        ssc_found, ssc_url = query_ssc(name)
+        log = run_ssc_describe(name)
+        meta = parse_ssc_log(log) if log else {}
 
-        version = meta.get("version") or ""
-        description = meta.get("description") or ""
+        version = (meta.get("version") or "") if meta else ""
+        description = (meta.get("description") or "") if meta else ""
+        url = (meta.get("url") or "") if meta else ""
+        ssc_found = (meta.get("ssc_found") or "") if meta else ""
+        ssc_url = (meta.get("ssc_url") or "") if meta else ""
         location = resolve_location(shared_root, ado_path)
 
-        print(format_row(name, version, description, "", location, ssc_found, ssc_url))
+        print(format_row(name, version, description, url, location, ssc_found, ssc_url))
 
 if __name__ == "__main__":
     print_report(DEFAULT_SHARED_ADO)
