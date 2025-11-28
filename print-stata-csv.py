@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Emit a tab-separated report for Stata packages listed in stata_requirements.txt.
+Emit a tab-separated report for every Stata package found in the shared ado tree.
 
 The output mirrors the column order used by the Python and R inventory scripts
 and appends SSC lookup details: package name, version, source, reviewer,
@@ -9,13 +9,11 @@ Metadata is derived from the shared ado tree when available.
 """
 
 import argparse
-import csv
 import os
 import requests
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple
 
-DEFAULT_REQUIREMENTS = Path(__file__).resolve().parent / "stata_requirements.txt"
 DEFAULT_SHARED_ADO = Path(r"C:/Program Files/Stata18/shared_ado")
 SUMMARY_LINE_LIMIT = 30
 
@@ -27,28 +25,6 @@ def ensure_windows() -> None:
         raise SystemExit("This script is intended to run on Windows hosts only.")
 
 
-def read_requirements(path: Path) -> List[Dict[str, str]]:
-    """Load requirement entries from a CSV with headers packagename,url."""
-
-    if not path.exists():
-        raise SystemExit(f"Missing requirements file at: {path}")
-
-    with path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        rows = [
-            {"packagename": (row.get("packagename") or "").strip(), "url": (row.get("url") or "").strip()}
-            for row in reader
-            if row
-        ]
-
-    rows = [row for row in rows if row["packagename"] and row["url"]]
-
-    if not rows:
-        raise SystemExit(f"No valid rows found in {path}. Expected headers packagename,url.")
-
-    return rows
-
-
 def scan_ado_files(base_path: Path) -> Iterable[Path]:
     """Yield all .ado file paths under the shared ado directory."""
 
@@ -56,18 +32,6 @@ def scan_ado_files(base_path: Path) -> Iterable[Path]:
         for filename in files:
             if filename.lower().endswith(".ado"):
                 yield Path(root) / filename
-
-
-def find_ado_file(base_path: Path, package: str) -> Optional[Path]:
-    """Return the first ado file matching the package name within the shared tree."""
-
-    target = f"{package.lower()}.ado"
-
-    for ado_file in scan_ado_files(base_path):
-        if ado_file.name.lower() == target:
-            return ado_file
-
-    return None
 
 
 def extract_local_metadata(filepath: Path) -> Dict[str, Optional[str]]:
@@ -157,40 +121,28 @@ def resolve_location(shared_root: Path, ado_path: Optional[Path]) -> Path:
     return shared_root
 
 
-def print_report(requirements_path: Path, shared_root: Path) -> None:
+def print_report(shared_root: Path) -> None:
     ensure_windows()
-
-    requirements = read_requirements(requirements_path)
 
     if not shared_root.exists():
         raise SystemExit(
             f"Shared ado directory not found at {shared_root}. Run install-stata-baseline.do first."
         )
 
-    for entry in requirements:
-        name = entry["packagename"]
-        url = entry["url"]
-
-        ado_path = find_ado_file(shared_root, name)
-        meta = extract_local_metadata(ado_path) if ado_path else {"version": None, "description": None}
-
+    for ado_path in scan_ado_files(shared_root):
+        name = ado_path.stem
+        meta = extract_local_metadata(ado_path)
         ssc_found, ssc_url = query_ssc(name)
 
         version = meta.get("version") or ""
         description = meta.get("description") or ""
         location = resolve_location(shared_root, ado_path)
 
-        print(format_row(name, version, description, url, location, ssc_found, ssc_url))
+        print(format_row(name, version, description, "", location, ssc_found, ssc_url))
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Print Stata package metadata as TSV")
-    parser.add_argument(
-        "--requirements",
-        type=Path,
-        default=DEFAULT_REQUIREMENTS,
-        help="Path to stata_requirements.txt",
-    )
     parser.add_argument(
         "--shared-ado",
         type=Path,
@@ -202,4 +154,4 @@ def parse_args() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
-    print_report(args.requirements, args.shared_ado)
+    print_report(args.shared_ado)
