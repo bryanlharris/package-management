@@ -1,24 +1,24 @@
 /***************************************************************************************************
- * Install Stata packages directly into the shared ado directory using requirement metadata.
+ * Install Stata packages directly into the managed shared ado tree using requirement metadata.
  *
- * This replaces the older mirror-building approach by pointing Stata's PLUS directory to the
- * shared ado location and installing each listed package from its upstream source with
- * `replace`, allowing repeatable reinstallation without a separate mirror tree.
+ * The script reads `stata_requirements.txt` in this repository (a CSV with headers `packagename,url`),
+ * sets the ado install directory to the shared ado location (no PLUS subfolder), ensures per-letter
+ * package folders exist, and installs each package from its upstream source with `replace` enabled so
+ * repeated runs are idempotent. Verbose messaging highlights configuration and per-package results.
  *
  * Usage (from the project root on Windows):
- *
- *   Right-click the file and choose "Do" in Stata (or run via Stata's batch CLI if available).
+ *   - Right-click this file and choose "Do" in Stata, or run via Stata's batch CLI if available.
  *
  * Requirements:
  *   - Windows host.
- *   - `stata_requirements.txt` with headers `packagename,url` saved in this repository's root.
+ *   - `stata_requirements.txt` saved in this repository's root with headers `packagename,url`.
  *   - Shared ado directory at `C:\\Program Files\\Stata18\\shared_ado` (created if missing).
  ***************************************************************************************************/
 
 version 17.0
 
 local requirements "`c(pwd)'\stata_requirements.txt"
-local target "C:\\Program Files\\Stata18\\shared_ado"
+local shared_root "C:\\Program Files\\Stata18\\shared_ado"
 
 if (lower(c(os)) != "windows") {
     display as error "Windows only."
@@ -27,14 +27,20 @@ if (lower(c(os)) != "windows") {
 
 capture confirm file "`requirements'"
 if (_rc) {
-    display as error "Missing: `requirements'"
+    display as error "Missing requirements file: `requirements'"
     exit 601
 }
 
-// Ensure the target directory exists and becomes the PLUS location for installations.
-cap mkdir "`target'"
-sysdir set PLUS "`target'"
+// Ensure the shared ado directory exists and is used for installs (no PLUS folder).
+cap mkdir "`shared_root'"
+adopath ++ "`shared_root'"
+net set ado "`shared_root'"
 
+// Show configuration for easier troubleshooting.
+display as text "Installing from: `requirements'"
+display as text "Shared ado target: `shared_root'"
+
+display as text "Reading requirements..."
 import delimited using "`requirements'", clear stringcols(_all) varnames(1)
 
 rename packagename pkg
@@ -44,20 +50,47 @@ if (_N == 0) {
     exit 0
 }
 
+display as text "Found `_N' packages to process."
+
 set more off
 
-quietly forvalues i = 1/`=_N' {
-    local p = pkg[`i']
-    local src = url[`i']
+local failures 0
+local failed_list ""
 
-    if ("`p'" == "" | "`src'" == "") continue
+forvalues i = 1/`=_N' {
+    local p = trim(pkg[`i'])
+    local src = trim(url[`i'])
 
-    display "Installing `p' from `src'"
-    cap net install `p', from(`"`src'"') replace
-    if (_rc) {
-        display as error "Failed: `p'"
-        exit _rc
+    if ("`p'" == "" | "`src'" == "") {
+        display as result "Skipping row `i' (missing package or URL)."
+        continue
     }
+
+    local first = substr(lower("`p'"), 1, 1)
+    if (!regexm("`first'", "[a-z]")) {
+        local first "_"
+    }
+
+    cap mkdir "`shared_root'\\`first'"
+
+    display as text "[`i'/`=_N'] Installing `p' from `src' into `shared_root'\\`first'"
+    quietly cap net install `p', from(`"`src'"') replace
+    local rc = _rc
+
+    if (`rc') {
+        display as error "    Failed: `p' (_rc = `rc')"
+        local failures = `failures' + 1
+        local failed_list = trim("`failed_list' `p'(_rc=`rc')")
+        continue
+    }
+
+    display as result "    Success: `p' installed."
 }
 
+if (`failures') {
+    display as error "Completed with `failures' failure(s): `failed_list'"
+    exit 498
+}
+
+display as result "All packages installed successfully."
 exit 0
