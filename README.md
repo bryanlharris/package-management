@@ -51,9 +51,10 @@ python install-python-baseline.py
 Rscript install-r-baseline.R
 # In Stata, right-click install-stata-baseline.do and choose "Do" to run it
 # (or use your Stata batch CLI, e.g., `stata-se -b do install-stata-baseline.do`, if configured).
-# The Stata script expects mirrored packages to reside in subfolders matching the
-# first letter of the package name, with unpacked package contents and `stata.trk`
-# directly under `C:\\admin\\stata_mirror\\r\\` (no standalone `.pkg` file).
+# The Stata script expects the mirror root (`C:\\admin\\stata_mirror`) to contain
+# a single `stata.trk` manifest that points to lettered subfolders created by
+# `net install`. Pointing `from()` at the mirror root lets Stata follow that
+# manifest without needing standalone `.pkg` files.
 ```
 
 Check for any packages in `new.txt` (one package name per line) that are not already captured in `python_requirements.txt`:
