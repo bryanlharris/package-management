@@ -1,14 +1,13 @@
 """
-Mirror Stata package sources by cloning their remote folders verbatim using a Python crawler.
+Mirror Stata package sources by resolving the files listed in each package's ``.pkg`` manifest.
 
 For each entry in `stata_requirements.txt` (headers: `packagename,url`), this script:
-- Wipes the existing local mirror folder for that package inside `C:\\admin\\stata_mirror`.
-- Recursively downloads everything reachable from the provided URL into that folder using
-  Python's `requests` and `beautifulsoup4` libraries.
-
-The layout on disk mirrors the upstream site exactly—no `stata.trk` is generated and files are
-not rearranged into lettered subdirectories. Stata installers should point directly at each
-package's mirrored folder when installing.
+- Locates the package's `.pkg` file (either the supplied URL or `{base}/{pkgname}.pkg`).
+- Parses the manifest's `from` and `file` directives to learn which files belong to the
+  package.
+- Downloads the manifest and each referenced payload directly into `C:\\admin\\stata_mirror`,
+  preserving the upstream folder layout instead of creating per-package subdirectories.
+- Skips a package when the manifest cannot be fetched or parsed.
 
 Requirements:
 - Windows host.
@@ -18,9 +17,8 @@ Requirements:
 
 import csv
 import os
-import shutil
 import sys
-from typing import Iterable, Tuple
+from typing import Iterable, List, Tuple
 from urllib.parse import urljoin, urlparse
 
 MIRROR_ROOT = r"C:\\admin\\stata_mirror"
@@ -72,69 +70,113 @@ def _save_response_content(url: str, dest: str, base_parts, response, is_html: b
         handle.write(response.content)
 
 
-def _should_follow_link(target: str, base_parts) -> bool:
-    parsed = urlparse(target)
-    if parsed.scheme and parsed.scheme not in {"http", "https"}:
-        return False
-    netloc = parsed.netloc or base_parts.netloc
-    path = parsed.path or "/"
-    if netloc != base_parts.netloc:
-        return False
-    return path.startswith(base_parts.path)
+def _resolve_pkg_url(pkg: str, url: str) -> Tuple[str, str]:
+    """
+    Identify the manifest URL for a package.
+
+    If the provided URL already points at a ``.pkg`` file we reuse it. Otherwise we assume
+    the conventional ``{base}/{pkgname}.pkg`` layout that Stata package repositories use
+    and append the filename to the supplied base URL.
+    """
+
+    parsed = urlparse(url)
+    if parsed.path.lower().endswith(".pkg"):
+        pkg_url = url
+    else:
+        base_url = url if url.endswith("/") else f"{url}/"
+        pkg_url = urljoin(base_url, f"{pkg}.pkg")
+
+    # urljoin(..., ".") returns the manifest's directory with a trailing slash, which we
+    # then reuse when resolving referenced files.
+    return pkg_url, urljoin(pkg_url, ".")
 
 
-def _crawl_and_download(url: str, base_parts, dest: str, visited: set) -> None:
-    if url in visited:
-        return
-    visited.add(url)
+def _parse_pkg_manifest(manifest_text: str) -> List[str]:
+    """
+    Parse a Stata ``.pkg`` file and extract referenced files.
+
+    The .pkg syntax we expect mirrors the common format used by SSC packages::
+
+        * comments start with an asterisk
+        from . using mypkg.ado mypkg.sthlp
+        file manual.pdf
+
+    "from" lines list relative files after an optional ``using`` token and typically point
+    back to the same directory that hosted the ``.pkg`` file. "file" entries explicitly
+    list downloadable payloads. Both directives are treated as relative paths, and the
+    downloader resolves them against the manifest's directory.
+    """
+
+    files: List[str] = []
+    for line in manifest_text.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("*"):
+            continue
+
+        tokens = stripped.split()
+        directive = tokens[0].lower()
+        if directive not in {"from", "file"}:
+            continue
+
+        for token in tokens[1:]:
+            if token.lower() == "using":
+                continue
+            files.append(token)
+
+    return files
+
+
+def _fetch_pkg_and_files(pkg: str, url: str, dest: str) -> None:
+    _ensure_requests_stack_available()
+    pkg_url, base_url = _resolve_pkg_url(pkg, url)
+    base_parts = urlparse(base_url)
 
     try:
         import requests
-        from bs4 import BeautifulSoup
     except ImportError:
         _ensure_requests_stack_available()
         import requests
-        from bs4 import BeautifulSoup
 
     try:
-        response = requests.get(url)
-        response.raise_for_status()
+        pkg_response = requests.get(pkg_url)
+        pkg_response.raise_for_status()
     except Exception as exc:
-        raise SystemExit(f"Failed to mirror content from {url}: {exc}")
-
-    content_type = (response.headers.get("Content-Type") or "").lower()
-    is_html = "text/html" in content_type
-    _save_response_content(url, dest, base_parts, response, is_html)
-
-    if not is_html:
+        print(f"Error fetching {pkg} manifest at {pkg_url}: {exc}")
         return
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    for link in soup.find_all("a"):
-        href = link.get("href")
-        if not href:
-            continue
-        target = urljoin(url, href)
-        if not _should_follow_link(target, base_parts):
-            continue
-        _crawl_and_download(target, base_parts, dest, visited)
+    _save_response_content(pkg_url, dest, base_parts, pkg_response, is_html=False)
 
+    try:
+        manifest_files = _parse_pkg_manifest(pkg_response.text)
+    except Exception as exc:
+        print(f"Error parsing {pkg} manifest at {pkg_url}: {exc}")
+        return
 
-def _download_with_requests(pkg: str, url: str, dest: str) -> None:
-    _ensure_requests_stack_available()
-    base_url = url if url.endswith("/") else f"{url}/"
-    base_parts = urlparse(base_url)
-    print(f"Mirroring {pkg} from {base_url} → {dest} using Python crawler")
-    _crawl_and_download(base_url, base_parts, dest, set())
+    if not manifest_files:
+        print(f"Error parsing {pkg} manifest at {pkg_url}: no file entries found")
+        return
+
+    for rel_path in manifest_files:
+        file_url = urljoin(base_url, rel_path)
+        try:
+            response = requests.get(file_url)
+            response.raise_for_status()
+        except Exception as exc:
+            print(f"Error downloading {pkg} file {file_url}: {exc}")
+            continue
+
+        content_type = (response.headers.get("Content-Type") or "").lower()
+        is_html = "text/html" in content_type
+        _save_response_content(file_url, dest, base_parts, response, is_html)
 
 
 def _mirror_package(pkg: str, url: str) -> None:
-    dest = os.path.join(MIRROR_ROOT, pkg)
-    if os.path.isdir(dest):
-        shutil.rmtree(dest)
-    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(MIRROR_ROOT):
+        os.makedirs(MIRROR_ROOT, exist_ok=True)
 
-    _download_with_requests(pkg, url, dest)
+    # Keep files directly under MIRROR_ROOT; Stata will reference the same relative
+    # hierarchy as the upstream host rather than an extra per-package subfolder.
+    _fetch_pkg_and_files(pkg, url, MIRROR_ROOT)
 
 
 if __name__ == "__main__":
