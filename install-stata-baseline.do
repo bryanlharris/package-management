@@ -44,12 +44,10 @@ quietly forvalues i = 1/`=_N' {
 
     if ("`p'" == "") continue
 
-    local subdir = substr("`p'", 1, 1)
-    // When mirroring, Stata unpacks the package files and writes `stata.trk`
-    // directly under the first-letter folder (e.g., `mirror\r\`). Point `from()`
-    // at that lettered folder so `net install` reads the manifest without a
-    // `.pkg` file.
-    local fromdir "`mirror'\`subdir'"
+    // The mirror exposes a single `stata.trk` file at its root that contains
+    // pointers to the lettered subfolders. Point `from()` at the mirror root so
+    // `net install` reads that manifest and follows it to the right subfolder.
+    local fromdir "`mirror'"
 
     display "Installing `p' from `fromdir'"
     cap net install `p', from(`"`fromdir'"') replace
