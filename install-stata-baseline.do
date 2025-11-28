@@ -44,8 +44,15 @@ quietly forvalues i = 1/`=_N' {
 
     if ("`p'" == "") continue
 
-    display "Installing `p' from `mirror'"
-    cap net install `p', from(`"`mirror'"') replace
+    local subdir = substr("`p'", 1, 1)
+    // When mirroring, Stata unpacks the package files and writes `stata.trk`
+    // directly under the first-letter folder (e.g., `mirror\r\`). Point `from()`
+    // at that lettered folder so `net install` reads the manifest without a
+    // `.pkg` file.
+    local fromdir "`mirror'\`subdir'"
+
+    display "Installing `p' from `fromdir'"
+    cap net install `p', from(`"`fromdir'"') replace
     if (_rc) {
         display as error "Failed: `p'"
         exit _rc
