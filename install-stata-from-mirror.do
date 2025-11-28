@@ -1,12 +1,14 @@
 /***************************************************************************************************
- * Install Stata packages from the local mirror into the shared ado directory.
+ * Install Stata packages from a locally cloned mirror into the shared ado directory.
  *
  * Usage (from the project root on Windows):
  *
  *   Right-click the file and choose "Do" in Stata (or run via Stata's batch CLI if available).
  *
- * The script installs packages listed in `stata_requirements.txt` from `C:\admin\stata_mirror`
- * into `C:\Program Files\Stata18\shared_ado` using `net install`.
+ * The script installs packages listed in `stata_requirements.txt` from the local mirror at
+ * `C:\admin\stata_mirror`. Each package is expected to live in its own subfolder named after the
+ * package (e.g., `C:\admin\stata_mirror\rdmulti\...`) that was created by `direct-clone-stata-mirror.py`.
+ * No remote URLs are used during installation.
  ***************************************************************************************************/
 
 version 17.0
@@ -44,10 +46,8 @@ quietly forvalues i = 1/`=_N' {
 
     if ("`p'" == "") continue
 
-    // The mirror exposes a single `stata.trk` file at its root that contains
-    // pointers to the lettered subfolders. Point `from()` at the mirror root so
-    // `net install` reads that manifest and follows it to the right subfolder.
-    local fromdir "`mirror'"
+    // Install from the package-specific mirror folder. No remote URLs are referenced.
+    local fromdir "`mirror'\`p'"
 
     display "Installing `p' from `fromdir'"
     cap net install `p', from(`"`fromdir'"') replace
