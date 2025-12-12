@@ -18,13 +18,15 @@ function Get-LatestPython3Version {
         exit 1
     }
 
-    # Parse py --list output to find Python 3.x versions
-    # Example output:
+    # Parse py --list output to find Python 3.x versions.
+    # Example outputs seen:
     #  -3.13-64 *
     #  -3.12-64
     #  -3.11-64
-    $python3Versions = $pyList | Where-Object { $_ -match '-3\.(\d+)' } | ForEach-Object {
-        if ($_ -match '-3\.(\d+)') {
+    #  -V:3.13          Python 3.13 (64-bit)
+    #  -V:3.7 *         Python 3.7 (64-bit)
+    $python3Versions = foreach ($line in $pyList) {
+        if ($line -match '3\.(\d+)') {
             [PSCustomObject]@{
                 Major = 3
                 Minor = [int]$matches[1]
@@ -32,6 +34,11 @@ function Get-LatestPython3Version {
             }
         }
     }
+
+    # Ensure duplicate architecture entries do not skew selection
+    $python3Versions = $python3Versions |
+        Sort-Object -Property Minor -Descending |
+        Select-Object -Property Major, Minor, FullVersion -Unique
 
     if (-not $python3Versions -or $python3Versions.Count -eq 0) {
         Write-Error "No Python 3.x interpreters found. Please install Python 3.x."
