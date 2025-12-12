@@ -5,3 +5,5 @@ Set-Location "C:\admin\pip_mirror"
 Rename-Item "C:\ProgramData\pip\pip.ini" "C:\ProgramData\pip\pip.ini.disabled" -ErrorAction SilentlyContinue
 
 (Get-Content "C:\admin\package-management\pip_requirements_multi_version.txt" | Measure-Object -Line).Lines
+
+Set-Location "C:\admin\package-management"

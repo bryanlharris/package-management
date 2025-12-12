@@ -8,3 +8,5 @@ find-links = file:///C:/admin/pip_mirror/packages
 no-index = true
 "@
 [System.IO.File]::WriteAllText("C:\ProgramData\pip\pip.ini", $pipConfig)
+
+Set-Location "C:\admin\package-management"
