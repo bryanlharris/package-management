@@ -11,24 +11,80 @@ $maxJobs = 15
 $total = $packages.Count
 $current = 0
 
+# Track jobs and their associated packages
+$jobPackages = @{}
+
+Write-Host "Phase 1: Downloading binary wheels...`n"
+
 foreach ($pkg in $packages) {
     while ((Get-Job -State Running).Count -ge $maxJobs) {
         Start-Sleep -Milliseconds 200
     }
 
     $current++
-    Start-Job -ScriptBlock {
+    $job = Start-Job -ScriptBlock {
         param($package, $output)
-        pip download $package -d $output --platform win_amd64 --python-version 313 --only-binary=:all: 2>&1
-    } -ArgumentList $pkg, $outputDir | Out-Null
+        $result = pip download $package -d $output --platform win_amd64 --python-version 313 --only-binary=:all: 2>&1
+        return @{
+            ExitCode = $LASTEXITCODE
+            Output = $result
+        }
+    } -ArgumentList $pkg, $outputDir
+
+    $jobPackages[$job.Id] = $pkg
 
     $running = (Get-Job -State Running).Count
     Write-Host "[$current/$total] Queued: $pkg (Active: $running)"
 }
 
-Write-Host "`nWaiting for downloads to complete..."
-Get-Job | Wait-Job | Receive-Job
+Write-Host "`nWaiting for binary downloads to complete..."
+Get-Job | Wait-Job | Out-Null
+
+# Collect results and identify failures
+$failedPackages = @()
+foreach ($job in Get-Job) {
+    $package = $jobPackages[$job.Id]
+    $result = Receive-Job $job
+
+    # Check if download failed (non-zero exit code or error indicators in output)
+    if ($result.ExitCode -ne 0 -or $result.Output -match "ERROR|Could not find|No matching distribution") {
+        $failedPackages += $package
+        Write-Host "Binary download failed: $package" -ForegroundColor Yellow
+    }
+}
+
 Get-Job | Remove-Job
+
+# Phase 2: Retry failures with source builds allowed
+if ($failedPackages.Count -gt 0) {
+    Write-Host "`nPhase 2: Retrying $($failedPackages.Count) failed package(s) with source builds allowed...`n"
+
+    $current = 0
+    $retryTotal = $failedPackages.Count
+
+    foreach ($pkg in $failedPackages) {
+        while ((Get-Job -State Running).Count -ge $maxJobs) {
+            Start-Sleep -Milliseconds 200
+        }
+
+        $current++
+        Start-Job -ScriptBlock {
+            param($package, $output)
+            # Remove --only-binary to allow source builds as fallback
+            pip download $package -d $output --platform win_amd64 --python-version 313 2>&1
+        } -ArgumentList $pkg, $outputDir | Out-Null
+
+        $running = (Get-Job -State Running).Count
+        Write-Host "[$current/$retryTotal] Retrying with source: $pkg (Active: $running)"
+    }
+
+    Write-Host "`nWaiting for source build downloads to complete..."
+    Get-Job | Wait-Job | Receive-Job
+    Get-Job | Remove-Job
+} else {
+    Write-Host "`nAll packages downloaded successfully with binary wheels!" -ForegroundColor Green
+}
+
 Write-Host "Download process complete."
 
 Set-Location "C:\admin\package-management"
