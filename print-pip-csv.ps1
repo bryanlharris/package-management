@@ -1,3 +1,6 @@
+# Load the System.IO.Compression assembly for ZipArchive
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
 $pipMirrorPath = "C:\admin\pip_mirror"
 
 if (-not (Test-Path $pipMirrorPath)) {
@@ -9,22 +12,22 @@ Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
     $whlFile = $_.FullName
     $filename = $_.BaseName
 
-    # Create a temporary extraction directory
-    $tempDir = Join-Path $env:TEMP ("whl_extract_" + [System.Guid]::NewGuid().ToString())
-
     try {
-        # Extract the wheel file (it's a ZIP archive)
-        # Copy .whl to .zip since Expand-Archive only recognizes .zip extension
-        $tempZip = Join-Path $env:TEMP ("whl_temp_" + [System.Guid]::NewGuid().ToString() + ".zip")
-        Copy-Item -Path $whlFile -Destination $tempZip -Force
-        Expand-Archive -Path $tempZip -DestinationPath $tempDir -Force
-        Remove-Item -Path $tempZip -Force -ErrorAction SilentlyContinue
+        # Open the wheel file directly as a ZIP archive
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($whlFile)
 
-        # Find the .dist-info directory
-        $distInfoDir = Get-ChildItem -Path $tempDir -Directory -Filter "*.dist-info" | Select-Object -First 1
+        # Find the METADATA file inside the *.dist-info directory
+        $metadataEntry = $zip.Entries | Where-Object {
+            $_.FullName -match '\.dist-info/METADATA$'
+        } | Select-Object -First 1
 
-        if ($distInfoDir) {
-            $metadataFile = Join-Path $distInfoDir.FullName "METADATA"
+        if ($metadataEntry) {
+            # Read the METADATA file content directly from the archive
+            $stream = $metadataEntry.Open()
+            $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
+            $content = $reader.ReadToEnd()
+            $reader.Close()
+            $stream.Close()
 
             # Initialize metadata fields
             $name = ""
@@ -32,23 +35,20 @@ Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
             $summary = ""
             $homepage = ""
 
-            if (Test-Path $metadataFile) {
-                # Read and parse the METADATA file
-                $content = Get-Content $metadataFile -Encoding UTF8
-
-                foreach ($line in $content) {
-                    if ($line -match "^Name:\s*(.+)$") {
-                        $name = $Matches[1].Trim()
-                    }
-                    elseif ($line -match "^Version:\s*(.+)$") {
-                        $version = $Matches[1].Trim()
-                    }
-                    elseif ($line -match "^Summary:\s*(.+)$") {
-                        $summary = $Matches[1].Trim()
-                    }
-                    elseif ($line -match "^Home-page:\s*(.+)$") {
-                        $homepage = $Matches[1].Trim()
-                    }
+            # Parse the METADATA content
+            $content -split "`n" | ForEach-Object {
+                $line = $_
+                if ($line -match "^Name:\s*(.+)$") {
+                    $name = $Matches[1].Trim()
+                }
+                elseif ($line -match "^Version:\s*(.+)$") {
+                    $version = $Matches[1].Trim()
+                }
+                elseif ($line -match "^Summary:\s*(.+)$") {
+                    $summary = $Matches[1].Trim()
+                }
+                elseif ($line -match "^Home-page:\s*(.+)$") {
+                    $homepage = $Matches[1].Trim()
                 }
             }
 
@@ -58,11 +58,10 @@ Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
                 "$name`t$version`tPyPi`tReviewer`tInstaller`t$summary`t$homepage`t$location"
             }
         }
+
+        $zip.Dispose()
     }
-    finally {
-        # Clean up the temporary extraction directory
-        if (Test-Path $tempDir) {
-            Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-        }
+    catch {
+        Write-Error "Failed to process $whlFile : $_"
     }
 }
