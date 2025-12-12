@@ -6,33 +6,59 @@ if (-not (Test-Path $pipMirrorPath)) {
 }
 
 Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
+    $whlFile = $_.FullName
     $filename = $_.BaseName
 
-    # Parse wheel filename format: {distribution}-{version}(-{build})?-{python}-{abi}-{platform}
-    # We need to split on '-' but package names can contain hyphens
-    # Strategy: Split and find where the version starts (first part matching version pattern)
-    $parts = $filename -split '-'
+    # Create a temporary extraction directory
+    $tempDir = Join-Path $env:TEMP ("whl_extract_" + [System.Guid]::NewGuid().ToString())
 
-    $name = ""
-    $version = ""
-    $foundVersion = $false
+    try {
+        # Extract the wheel file (it's a ZIP archive)
+        Expand-Archive -Path $whlFile -DestinationPath $tempDir -Force
 
-    for ($i = 0; $i -lt $parts.Length; $i++) {
-        # Check if this part looks like a version (starts with digit)
-        if (-not $foundVersion -and $parts[$i] -match '^\d') {
-            $version = $parts[$i]
-            $foundVersion = $true
-            # Join all previous parts as the package name
-            if ($i -gt 0) {
-                $name = ($parts[0..($i-1)] -join '-')
+        # Find the .dist-info directory
+        $distInfoDir = Get-ChildItem -Path $tempDir -Directory -Filter "*.dist-info" | Select-Object -First 1
+
+        if ($distInfoDir) {
+            $metadataFile = Join-Path $distInfoDir.FullName "METADATA"
+
+            # Initialize metadata fields
+            $name = ""
+            $version = ""
+            $summary = ""
+            $homepage = ""
+
+            if (Test-Path $metadataFile) {
+                # Read and parse the METADATA file
+                $content = Get-Content $metadataFile -Encoding UTF8
+
+                foreach ($line in $content) {
+                    if ($line -match "^Name:\s*(.+)$") {
+                        $name = $Matches[1].Trim()
+                    }
+                    elseif ($line -match "^Version:\s*(.+)$") {
+                        $version = $Matches[1].Trim()
+                    }
+                    elseif ($line -match "^Summary:\s*(.+)$") {
+                        $summary = $Matches[1].Trim()
+                    }
+                    elseif ($line -match "^Home-page:\s*(.+)$") {
+                        $homepage = $Matches[1].Trim()
+                    }
+                }
             }
-            break
+
+            if ($name -and $version) {
+                $location = $pipMirrorPath
+                # Output format: Name, Version, Source, Reviewer, Installer, Summary, Home-page, Location
+                "$name`t$version`tPyPi`tReviewer`tInstaller`t$summary`t$homepage`t$location"
+            }
         }
     }
-
-    if ($name -and $version) {
-        $location = $pipMirrorPath
-        # Output format: Name, Version, Source, Reviewer, Installer, Summary, Home-page, Location
-        "$name`t$version`tPyPi`tReviewer`tInstaller`t`t`t$location"
+    finally {
+        # Clean up the temporary extraction directory
+        if (Test-Path $tempDir) {
+            Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
     }
 }
