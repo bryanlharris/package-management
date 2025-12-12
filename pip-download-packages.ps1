@@ -1,3 +1,7 @@
+# Disable pip.ini temporarily
+Remove-Item "C:\ProgramData\pip\pip.ini.disabled" -Force -ErrorAction SilentlyContinue
+Rename-Item "C:\ProgramData\pip\pip.ini" "C:\ProgramData\pip\pip.ini.disabled" -ErrorAction SilentlyContinue
+
 New-Item -Path "C:\admin\pip_mirror" -ItemType Directory -Force
 Set-Location "C:\admin\pip_mirror"
 $outputDir = "C:\admin\pip_mirror"
