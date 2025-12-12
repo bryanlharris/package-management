@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 from collections import defaultdict
 
-packages_dir = Path('C:/admin/pip_mirror/packages')
+packages_dir = Path('C:/admin/pip_mirror')
 keep_versions = 3
 
 # Pattern to extract package name and version from wheel filename

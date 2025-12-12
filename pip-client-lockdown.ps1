@@ -4,7 +4,7 @@ Rename-Item "C:\ProgramData\pip\pip.ini.disabled" "C:\ProgramData\pip\pip.ini" -
 
 $pipConfig = @"
 [global]
-find-links = file:///C:/admin/pip_mirror/packages
+find-links = file:///C:/admin/pip_mirror
 no-index = true
 "@
 [System.IO.File]::WriteAllText("C:\ProgramData\pip\pip.ini", $pipConfig)
