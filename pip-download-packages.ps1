@@ -105,8 +105,8 @@ foreach ($pkg in $packages) {
 
     $current++
     $job = Start-Job -ScriptBlock {
-        param($package, $output, $selector, $pipVersion)
-        $result = & py $selector -m pip download $package -d $output --platform win_amd64 --python-version $pipVersion --only-binary=:all: 2>&1
+        param($package, $output, $selector, $pipPythonVersion)
+        $result = & py $selector -m pip download $package -d $output --platform win_amd64 --python-version $pipPythonVersion --only-binary=:all: 2>&1
         return @{
             ExitCode = $LASTEXITCODE
             Output = $result
