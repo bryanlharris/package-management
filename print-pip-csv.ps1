@@ -14,7 +14,11 @@ Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
 
     try {
         # Extract the wheel file (it's a ZIP archive)
-        Expand-Archive -Path $whlFile -DestinationPath $tempDir -Force
+        # Copy .whl to .zip since Expand-Archive only recognizes .zip extension
+        $tempZip = Join-Path $env:TEMP ("whl_temp_" + [System.Guid]::NewGuid().ToString() + ".zip")
+        Copy-Item -Path $whlFile -Destination $tempZip -Force
+        Expand-Archive -Path $tempZip -DestinationPath $tempDir -Force
+        Remove-Item -Path $tempZip -Force -ErrorAction SilentlyContinue
 
         # Find the .dist-info directory
         $distInfoDir = Get-ChildItem -Path $tempDir -Directory -Filter "*.dist-info" | Select-Object -First 1
