@@ -1,6 +1,6 @@
+New-Item -Path "C:\admin\pip_mirror" -ItemType Directory -Force
 Set-Location "C:\admin\pip_mirror"
-New-Item -Path "C:\admin\pip_mirror\packages" -ItemType Directory -Force
-$outputDir = "C:\admin\pip_mirror\packages"
+$outputDir = "C:\admin\pip_mirror"
 $requirementsFile = "C:\admin\package-management\pip_requirements_multi_version.txt"
 $packages = Get-Content $requirementsFile
 $maxJobs = 15
