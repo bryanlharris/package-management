@@ -99,14 +99,15 @@ $jobPackages = @{}
 Write-Host "Phase 1: Downloading binary wheels...`n"
 
 foreach ($pkg in $packages) {
+    $current++
+
     while ((Get-Job -State Running).Count -ge $maxJobs) {
         Start-Sleep -Milliseconds 200
     }
 
-    $current++
     $job = Start-Job -ScriptBlock {
         param($package, $output, $selector, $pipPythonVersion)
-        $result = & py $selector -m pip download $package -d $output --platform win_amd64 --python-version $pipPythonVersion --only-binary=:all: 2>&1
+        $result = & py $selector -m pip download $package -d $output --platform win_amd64 --python-version $pipPythonVersion --only-binary=:all: --exists-action i 2>&1
         return @{
             ExitCode = $LASTEXITCODE
             Output = $result
@@ -154,7 +155,7 @@ if ($failedPackages.Count -gt 0) {
             param($package, $output, $selector)
             # Remove platform constraints and allow source builds as fallback
             # Source distributions are platform-independent, so no need for --platform/--python-version
-            & py $selector -m pip download $package -d $output 2>&1
+            & py $selector -m pip download $package -d $output --exists-action i 2>&1
         } -ArgumentList $pkg, $outputDir, $pySelector | Out-Null
 
         $running = (Get-Job -State Running).Count
