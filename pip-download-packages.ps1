@@ -70,9 +70,9 @@ if ($failedPackages.Count -gt 0) {
         $current++
         Start-Job -ScriptBlock {
             param($package, $output)
-            # Remove --only-binary to allow source builds as fallback
-            # Add --no-deps because pip requires it when using platform constraints without --only-binary
-            pip download $package -d $output --platform win_amd64 --python-version 313 --no-deps 2>&1
+            # Remove platform constraints and allow source builds as fallback
+            # Source distributions are platform-independent, so no need for --platform/--python-version
+            pip download $package -d $output 2>&1
         } -ArgumentList $pkg, $outputDir | Out-Null
 
         $running = (Get-Job -State Running).Count
