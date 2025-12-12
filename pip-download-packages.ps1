@@ -26,3 +26,5 @@ Write-Host "`nWaiting for downloads to complete..."
 Get-Job | Wait-Job | Receive-Job
 Get-Job | Remove-Job
 Write-Host "Download process complete."
+
+Set-Location "C:\admin\package-management"
