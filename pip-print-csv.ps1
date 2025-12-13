@@ -70,6 +70,6 @@ if ($packageInfo) {
     ($packageInfo -join "`r`n") | clip.exe
 
     if ($LASTEXITCODE -eq 0) {
-        Write-Error -Message "Copied pip mirror package list to clipboard" -ErrorAction Continue
+        Write-Host "Copied pip mirror package list to clipboard" -ForegroundColor Yellow
     }
 }
