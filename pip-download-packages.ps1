@@ -136,6 +136,7 @@ $downloadJob = {
 
 $failedPackages = Invoke-DownloadPhase -Packages $packages -DownloadScript $downloadJob -MaxJobs $maxJobs -PhaseLabel "Phase 1: Downloading binary wheels..."
 
+$retryFailures = @()
 if ($failedPackages.Count -gt 0) {
     $sourceJob = {
         param($package)
@@ -143,10 +144,68 @@ if ($failedPackages.Count -gt 0) {
         return @{ ExitCode = $LASTEXITCODE; Output = "" }
     }
 
-    Invoke-DownloadPhase -Packages $failedPackages -DownloadScript $sourceJob -MaxJobs $maxJobs -PhaseLabel "Phase 2: Retrying failed packages with source builds allowed..." | Out-Null
+    $retryFailures = Invoke-DownloadPhase -Packages $failedPackages -DownloadScript $sourceJob -MaxJobs $maxJobs -PhaseLabel "Phase 2: Retrying failed packages with source builds allowed..."
 } else {
     Write-Host "`nAll packages downloaded successfully with binary wheels!" -ForegroundColor Green
 }
+
+function Get-NormalizedPackageName {
+    param([string]$name)
+
+    return ($name.ToLower() -replace '[_\.]+', '-')
+}
+
+function Get-PackageNameFromRequirement {
+    param([string]$requirementLine)
+
+    $trimmed = ($requirementLine -split ';')[0].Trim()
+    if (-not $trimmed) { return $null }
+
+    if ($trimmed.StartsWith('-')) { return $null }
+
+    if ($trimmed -match '^([A-Za-z0-9_.-]+)') {
+        return Get-NormalizedPackageName $matches[1]
+    }
+
+    return $null
+}
+
+if (-not (Test-Path $requirementsFile)) {
+    Write-Error "Requirements file not found at $requirementsFile"
+    exit 1
+}
+
+$artifactNames = Get-ChildItem $outputDir -File | ForEach-Object {
+    $base = ($_.Name -split '-')[0]
+    Get-NormalizedPackageName $base
+} | Sort-Object -Unique
+
+$requirementEntries = Get-Content $requirementsFile | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') }
+$missingPackages = @()
+foreach ($entry in $requirementEntries) {
+    $normalizedName = Get-PackageNameFromRequirement $entry
+    if (-not $normalizedName) { continue }
+
+    if (-not ($artifactNames -contains $normalizedName)) {
+        $missingPackages += $entry
+    }
+}
+
+if ($retryFailures.Count -gt 0 -or $missingPackages.Count -gt 0) {
+    if ($retryFailures.Count -gt 0) {
+        Write-Error "Some packages failed to download after retry: $($retryFailures -join ', ')"
+    }
+
+    if ($missingPackages.Count -gt 0) {
+        Write-Error "Missing downloaded artifacts for: $($missingPackages -join ', ')"
+        Write-Host "Packages without artifacts:" -ForegroundColor Yellow
+        $missingPackages | ForEach-Object { Write-Host " - $_" }
+    }
+
+    exit 1
+}
+
+Write-Host "All packages downloaded and verified."
 
 Write-Host "Download process complete."
 
