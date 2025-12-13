@@ -38,7 +38,7 @@ param(
     [string]$Mode = 'baseline',
 
 [Parameter(Mandatory = $false)]
-[string]$ManifestPath,
+[string]$ManifestPath
 )
 
 $ErrorActionPreference = 'Stop'
