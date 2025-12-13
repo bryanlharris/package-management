@@ -139,6 +139,8 @@ if (-not (Test-Path -LiteralPath $SharedAdo)) {
     exit 1
 }
 
+$rows = New-Object System.Collections.Generic.List[string]
+
 foreach ($ado in Get-AdoFiles -BasePath $SharedAdo) {
     $name = [System.IO.Path]::GetFileNameWithoutExtension($ado.Name)
     $meta = Get-LocalMetadata -File $ado
@@ -147,5 +149,22 @@ foreach ($ado in Get-AdoFiles -BasePath $SharedAdo) {
     $description = if ($meta.description) { $meta.description } else { "" }
     $location = Resolve-Location -SharedRoot $SharedAdo -AdoPath $ado
 
-    Write-Output (Format-Row -Package $name -Version $version -Description $description -Location $location)
+    $rows.Add((Format-Row -Package $name -Version $version -Description $description -Location $location)) | Out-Null
+}
+
+if ($rows.Count -gt 0) {
+    $report = $rows -join [System.Environment]::NewLine
+    $copySucceeded = $false
+
+    try {
+        $report | clip.exe
+        $copySucceeded = $? -and ($LASTEXITCODE -eq 0)
+    }
+    catch {
+        $copySucceeded = $false
+    }
+
+    if ($copySucceeded) {
+        Write-Host "Package report copied to clipboard." -ForegroundColor Yellow
+    }
 }
