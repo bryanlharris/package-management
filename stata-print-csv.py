@@ -109,7 +109,7 @@ def print_report(shared_root: Path) -> None:
 
     if not shared_root.exists():
         raise SystemExit(
-            f"Shared ado directory not found at {shared_root}. Run install-stata-baseline.do first."
+            f"Shared ado directory not found at {shared_root}. Run stata-install-baseline.do first."
         )
 
     for ado_path in scan_ado_files(shared_root):

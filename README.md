@@ -5,21 +5,21 @@ and mirror dependencies alongside your code.
 ## Files
 - `freeze-python-packages.py` — save frozen dependencies to `python_requirements.txt`.
 - `build-python-mirror.py` — mirror packages from `python_requirements.txt` into `C:\\admin\\python_mirror` on Windows.
-- `build-r-mirror.R` — mirror Windows binary packages from `r_requirements.txt` into `C:\\admin\\r_mirror` on Windows.
-- `install-stata-baseline.do` — install Stata packages from `stata_requirements.txt` into the shared ado directory on Windows.
+- `r-build-mirror.R` — mirror Windows binary packages from `r_requirements.txt` into `C:\\admin\\r_mirror` on Windows.
+- `stata-install-baseline.do` — install Stata packages from `stata_requirements.txt` into the shared ado directory on Windows.
 - `find-new-python-packages.py` — list packages in a new list that are missing from `python_requirements.txt`.
 - `install-python-baseline.py` — install packages from `python_requirements.txt` using the `C:\\admin\\python_mirror` baseline.
-- `install-r-baseline.R` — install packages from `r_requirements.txt` using the `C:\\admin\\r_mirror` baseline.
+- `r-install-baseline.R` — install packages from `r_requirements.txt` using the `C:\\admin\\r_mirror` baseline.
 - `print-python-csv.ps1` — emit a tab-separated report from `python_requirements.txt`.
-- `print-r-csv.R` — emit a tab-separated report from `r_requirements.txt` using the local R mirror.
+- `r-print-csv.R` — emit a tab-separated report from `r_requirements.txt` using the local R mirror.
 
 ## Usage
 Run the mirror initialization from the repository root on Windows hosts:
 
 ```powershell
 python build-python-mirror.py
-Rscript build-r-mirror.R
-# Run install-stata-baseline.do in Stata (right-click and choose "Do" on Windows)
+Rscript r-build-mirror.R
+# Run stata-install-baseline.do in Stata (right-click and choose "Do" on Windows)
 ```
 
 > The Stata requirements file (`stata_requirements.txt`) must be a CSV with a header row that names
@@ -46,7 +46,7 @@ Install the baseline requirements from the local mirror (requires an elevated sh
 
 ```powershell
 python install-python-baseline.py
-Rscript install-r-baseline.R
+Rscript r-install-baseline.R
 ```
 
 Check for any packages in `new.txt` (one package name per line) that are not already captured in `python_requirements.txt`:
@@ -64,7 +64,7 @@ Export a tab-separated report for the packages listed in `python_requirements.tx
 Export a tab-separated report for the packages listed in `r_requirements.txt` using the local mirror metadata:
 
 ```powershell
-Rscript print-r-csv.R > r-report.tsv
+Rscript r-print-csv.R > r-report.tsv
 ```
 
 ### Pip mirror maintenance
@@ -112,4 +112,4 @@ These utilities support common control objectives often found in FedRAMP and NIS
 - **Least functionality / allowlisting (e.g., CM-7, SI-7(10)):** Installation scripts only pull from locally mirrored artifacts (Windows `C:\\admin\\python_mirror` and `C:\\admin\\r_mirror`) and require Windows hosts (with admin elevation for Python), constraining software sources and scope.
 - **Supply chain risk management / software integrity (e.g., NIST SP 800-161r1, NIST SP 800-218):** Mirror-building downloads vetted versions into organization-controlled directories for offline installs, reducing exposure to tampered upstream artifacts and ensuring content matches the specified baseline.
 - **Change control and auditability (e.g., CM-3, SA-10):** `find-new-python-packages.py` normalizes and records new dependencies into the baseline file rather than permitting ad-hoc installs, creating a reviewable change point.
-- **Asset reporting / inventory (e.g., CM-8, SI-4(14)):** `print-python-csv.ps1` and `print-r-csv.R` generate inventories (package, version, source URL, install location) from the mirrored content to feed review or inventory processes.
+- **Asset reporting / inventory (e.g., CM-8, SI-4(14)):** `print-python-csv.ps1` and `r-print-csv.R` generate inventories (package, version, source URL, install location) from the mirrored content to feed review or inventory processes.

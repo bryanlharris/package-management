@@ -3,7 +3,7 @@
 #
 # Usage (from the project root):
 #
-#   Rscript install-r-baseline.R
+#   Rscript r-install-baseline.R
 #
 # The script expects packages listed one per line in ``r_requirements.txt`` and
 # mirrored Windows binaries under ``C:/admin/r_mirror``. It installs the
@@ -64,7 +64,7 @@ read_requirements <- function(path) {
 resolve_local_repo <- function(path) {
   if (!dir.exists(path)) {
     stop(
-      sprintf("Local mirror not found at %s. Run build-r-mirror.R first to populate the mirror.", path)
+      sprintf("Local mirror not found at %s. Run r-build-mirror.R first to populate the mirror.", path)
     )
   }
 

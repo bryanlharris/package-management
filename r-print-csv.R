@@ -59,7 +59,7 @@ load_package_metadata <- function(mirror_path) {
   if (!file.exists(packages_file)) {
     stop(
       sprintf(
-        "PACKAGES index not found at %s. Run build-r-mirror.R to populate the mirror.",
+        "PACKAGES index not found at %s. Run r-build-mirror.R to populate the mirror.",
         packages_file
       )
     )
@@ -161,7 +161,7 @@ print_report <- function(requirements_path, mirror_path) {
   if (!dir.exists(mirror)) {
     stop(
       sprintf(
-        "Local mirror not found at %s. Run build-r-mirror.R to download the binaries.",
+        "Local mirror not found at %s. Run r-build-mirror.R to download the binaries.",
         mirror
       )
     )

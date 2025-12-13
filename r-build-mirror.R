@@ -3,7 +3,7 @@
 #
 # Usage (from the project root):
 #
-#   Rscript build-r-mirror.R
+#   Rscript r-build-mirror.R
 #
 # The script reads package names from ``r_requirements.txt`` (one package per
 # line, comments starting with ``#`` are ignored) and downloads the Windows
