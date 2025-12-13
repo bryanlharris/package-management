@@ -67,6 +67,44 @@ Export a tab-separated report for the packages listed in `r_requirements.txt` us
 Rscript print-r-csv.R > r-report.tsv
 ```
 
+### Pip mirror maintenance
+Use the pip-specific maintenance scripts when you need to refresh or prune the Windows Python wheel mirror at `C:\\admin\\pip_mirror`:
+
+- Pull wheels for all requirements across supported Python versions:
+
+  ```powershell
+  # Downloads wheels for the requirements listed in pip_requirements_multi_version.txt
+  # Optionally scope downloads to a specific interpreter version (for example, -PythonVersion 3.9)
+  ./pip-download-packages.ps1
+  ./pip-download-packages.ps1 -PythonVersion 3.9
+  ```
+
+  `pip-download-packages.ps1` temporarily disables the local `pip.ini` to allow upstream downloads and writes the wheels into `C:\\admin\\pip_mirror`.
+
+- Prune older wheels so only the newest N versions per package and Python ABI remain:
+
+  ```powershell
+  python ./pip-cleanup-versions.py
+  ```
+
+  The script walks `C:\\admin\\pip_mirror` and keeps only the most recent versions you configure.
+
+- Re-enable pip lockdown to point clients at the local mirror after downloads complete:
+
+  ```powershell
+  ./pip-client-lockdown.ps1
+  ```
+
+  This restores `pip.ini` with `--no-index` and `--find-links` settings aimed at `C:\\admin\\pip_mirror`.
+
+- Install compiler and SDK prerequisites for packages that need local builds:
+
+  ```powershell
+  ./pip-install-build-tools.ps1
+  ```
+
+  Run this before installing wheels that must compile native extensions so Windows build toolchains are present alongside the mirror.
+
 ## Alignment with FedRAMP/NIST-style controls
 These utilities support common control objectives often found in FedRAMP and NIST guidance:
 
