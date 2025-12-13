@@ -43,6 +43,35 @@ function Get-PipPythonVersion {
     $version.Replace('.', '')
 }
 
+function Normalize-PackageName {
+    param([string]$name)
+    $name.ToLower() -replace '[-_.]+', '-'
+}
+
+function Get-PackageArtifacts {
+    param(
+        [string]$Name,
+        [string]$Version,
+        [string]$Directory
+    )
+
+    $normalizedName = Normalize-PackageName $Name
+    $files = Get-ChildItem -Path $Directory -File -ErrorAction SilentlyContinue
+    $matching = foreach ($file in $files) {
+        if ($file.Name -notmatch '^(.+)-([0-9].+?)\.(tar\.gz|zip|whl)$') { continue }
+
+        $fileName = $matches[1]
+        $fileVersion = $matches[2]
+        $normalizedFileName = Normalize-PackageName $fileName
+
+        if ($normalizedFileName -eq $normalizedName -and $fileVersion -eq $Version) {
+            $file
+        }
+    }
+
+    $matching | Sort-Object -Property Name
+}
+
 function Invoke-DownloadPhase {
     param(
         [string[]]$Packages,
@@ -151,3 +180,47 @@ if ($failedPackages.Count -gt 0) {
 Write-Host "Download process complete."
 
 Set-Location "C:\admin\package-management"
+
+$lockFile = "C:\admin\package-management\pip_requirements_multi_version.lock"
+
+Write-Host "Generating lock file: $lockFile"
+
+$rawRequirements = Get-Content $requirementsFile | ForEach-Object { $_.Trim() }
+$requirements = $rawRequirements | Where-Object { $_ -and -not $_.StartsWith('#') }
+
+$lockEntries = @()
+foreach ($req in $requirements) {
+    if ($req -notmatch '^(?<name>[^=<>!~\s]+?)(?:\[.*\])?==(?<version>[^\s;]+)') {
+        Write-Error "Invalid requirement format: $req"
+        exit 1
+    }
+
+    $name = $matches['name']
+    $version = $matches['version']
+    $artifacts = Get-PackageArtifacts -Name $name -Version $version -Directory $outputDir
+
+    if (-not $artifacts -or $artifacts.Count -eq 0) {
+        Write-Error "No artifacts found for $name==$version in $outputDir."
+        exit 1
+    }
+
+    $hashParts = foreach ($artifact in $artifacts) {
+        $hash = Get-FileHash -Path $artifact.FullName -Algorithm SHA256
+        if (-not $hash.Hash) {
+            Write-Error "Failed to compute hash for $($artifact.Name)"
+            exit 1
+        }
+
+        "--hash=sha256:$($hash.Hash.ToLower())"
+    }
+
+    $lockEntries += "$req " + ($hashParts -join ' ')
+}
+
+if ($lockEntries.Count -eq 0) {
+    Write-Error "No requirements found to lock."
+    exit 1
+}
+
+Set-Content -Path $lockFile -Value $lockEntries
+Write-Host "Lock file written to $lockFile" -ForegroundColor Green
