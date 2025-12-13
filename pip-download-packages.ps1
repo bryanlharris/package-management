@@ -24,13 +24,17 @@ function Get-LatestPython3Version {
         }
     }
 
-    $deduped = $python3Versions | Sort-Object -Descending -Unique
-    if (-not $deduped) {
+    $sortedVersions = $python3Versions | Sort-Object {[version]$_} -Descending -Unique
+    if (-not $sortedVersions) {
         Write-Error "No Python 3.x interpreters found. Please install Python 3.x."
         exit 1
     }
 
-    return $deduped | Select-Object -First 1
+    $sampleVersions = @('3.7', '3.10', '3.13', '3.9')
+    $sampleSorted = $sampleVersions | Sort-Object {[version]$_} -Descending
+    Write-Verbose "Example numeric ordering for detected 3.x versions: $($sampleVersions -join ', ') -> $($sampleSorted -join ', ') (selects $($sampleSorted[0]))"
+
+    return $sortedVersions | Select-Object -First 1
 }
 
 function Get-PySelector {
