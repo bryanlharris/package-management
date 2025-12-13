@@ -8,7 +8,7 @@ if (-not (Test-Path $pipMirrorPath)) {
     exit 1
 }
 
-Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
+$packageInfo = Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
     $whlFile = $_.FullName
     $filename = $_.BaseName
 
@@ -63,5 +63,13 @@ Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
     }
     catch {
         Write-Error "Failed to process $whlFile : $_"
+    }
+}
+
+if ($packageInfo) {
+    ($packageInfo -join "`r`n") | clip.exe
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Error -Message "Copied pip mirror package list to clipboard" -ErrorAction Continue
     }
 }
