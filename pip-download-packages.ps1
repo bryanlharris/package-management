@@ -4,18 +4,26 @@ param(
     [string]$PythonVersion
 )
 
+$originalLocation = Get-Location
+
+function Exit-WithCleanup {
+    param([string]$message)
+
+    if ($message) { Write-Error $message }
+    Set-Location $originalLocation
+    exit 1
+}
+
 function Ensure-PyLauncher {
     if (Get-Command py.exe -ErrorAction SilentlyContinue) { return }
 
-    Write-Error "py.exe not found. Please ensure Python Launcher for Windows is installed."
-    exit 1
+    Exit-WithCleanup "py.exe not found. Please ensure Python Launcher for Windows is installed."
 }
 
 function Get-LatestPython3Version {
     $pyList = & py --list 2>&1
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to run 'py --list'. Ensure Python Launcher is properly installed."
-        exit 1
+        Exit-WithCleanup "Failed to run 'py --list'. Ensure Python Launcher is properly installed."
     }
 
     $python3Versions = foreach ($line in $pyList) {
@@ -26,8 +34,7 @@ function Get-LatestPython3Version {
 
     $sortedVersions = $python3Versions | Sort-Object {[version]$_} -Descending -Unique
     if (-not $sortedVersions) {
-        Write-Error "No Python 3.x interpreters found. Please install Python 3.x."
-        exit 1
+        Exit-WithCleanup "No Python 3.x interpreters found. Please install Python 3.x."
     }
 
     $sampleVersions = @('3.7', '3.10', '3.13', '3.9')
@@ -127,8 +134,7 @@ $selectedVersion = if ($PythonVersion) {
     $pySelector = Get-PySelector $PythonVersion
     & py $pySelector --version 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Python $PythonVersion is not installed. Please install it or choose a different version."
-        exit 1
+        Exit-WithCleanup "Python $PythonVersion is not installed. Please install it or choose a different version."
     }
     $PythonVersion
 } else {
@@ -204,8 +210,7 @@ function Get-PackageNameFromRequirement {
 }
 
 if (-not (Test-Path $requirementsFile)) {
-    Write-Error "Requirements file not found at $requirementsFile"
-    exit 1
+    Exit-WithCleanup "Requirements file not found at $requirementsFile"
 }
 
 $artifactNames = Get-ChildItem $outputDir -File | ForEach-Object {
@@ -235,7 +240,7 @@ if ($retryFailures.Count -gt 0 -or $missingPackages.Count -gt 0) {
         $missingPackages | ForEach-Object { Write-Host " - $_" }
     }
 
-    exit 1
+    Exit-WithCleanup $null
 }
 
 Write-Host "All packages downloaded and verified."
@@ -254,8 +259,7 @@ $requirements = $rawRequirements | Where-Object { $_ -and -not $_.StartsWith('#'
 $lockEntries = @()
 foreach ($req in $requirements) {
     if ($req -notmatch '^(?<name>[^=<>!~\s]+?)(?:\[.*\])?==(?<version>[^\s;]+)') {
-        Write-Error "Invalid requirement format: $req"
-        exit 1
+        Exit-WithCleanup "Invalid requirement format: $req"
     }
 
     $name = $matches['name']
@@ -263,15 +267,13 @@ foreach ($req in $requirements) {
     $artifacts = Get-PackageArtifacts -Name $name -Version $version -Directory $outputDir
 
     if (-not $artifacts -or $artifacts.Count -eq 0) {
-        Write-Error "No artifacts found for $name==$version in $outputDir."
-        exit 1
+        Exit-WithCleanup "No artifacts found for $name==$version in $outputDir."
     }
 
     $hashParts = foreach ($artifact in $artifacts) {
         $hash = Get-FileHash -Path $artifact.FullName -Algorithm SHA256
         if (-not $hash.Hash) {
-            Write-Error "Failed to compute hash for $($artifact.Name)"
-            exit 1
+            Exit-WithCleanup "Failed to compute hash for $($artifact.Name)"
         }
 
         "--hash=sha256:$($hash.Hash.ToLower())"
@@ -281,9 +283,9 @@ foreach ($req in $requirements) {
 }
 
 if ($lockEntries.Count -eq 0) {
-    Write-Error "No requirements found to lock."
-    exit 1
+    Exit-WithCleanup "No requirements found to lock."
 }
 
 Set-Content -Path $lockFile -Value $lockEntries
 Write-Host "Lock file written to $lockFile" -ForegroundColor Green
+Set-Location $originalLocation
