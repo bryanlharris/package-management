@@ -1,7 +1,8 @@
 #!/usr/bin/env Rscript
 # Emit a tab-separated report for packages in r_requirements.txt using metadata
 # from a local Windows mirror. Each row includes the package name, version,
-# source, and mirror details so the output can be pasted into a spreadsheet.
+# source, mirror details, and the SHA-256 hash from the mirror integrity
+# manifest so the output can be pasted into a spreadsheet.
 
 get_script_dir <- function() {
   args <- commandArgs(trailingOnly = FALSE)
@@ -147,6 +148,55 @@ fetch_cran_summary <- function(name) {
   strip_html(match[[1]])
 }
 
+load_integrity_manifest <- function(base_path) {
+  manifest_path <- file.path(base_path, "integrity-baseline.json")
+
+  if (!file.exists(manifest_path)) {
+    warning(
+      sprintf(
+        "Integrity manifest not found at %s; hash column will be empty.",
+        manifest_path
+      )
+    )
+    return(character(0))
+  }
+
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    warning("Package 'jsonlite' is required to read the integrity manifest; hash column will be empty.")
+    return(character(0))
+  }
+
+  manifest <- tryCatch(
+    jsonlite::fromJSON(manifest_path),
+    error = function(e) {
+      warning(
+        sprintf(
+          "Failed to parse integrity manifest at %s: %s",
+          manifest_path,
+          e$message
+        )
+      )
+      NULL
+    }
+  )
+
+  files <- manifest$Mirror$Files
+
+  if (is.null(files) || !all(c("RelativePath", "Hash") %in% names(files))) {
+    warning(
+      sprintf(
+        "Integrity manifest at %s does not include expected file details; hash column will be empty.",
+        manifest_path
+      )
+    )
+    return(character(0))
+  }
+
+  relative_paths <- as.character(files$RelativePath)
+  hashes <- as.character(files$Hash)
+  stats::setNames(hashes, basename(relative_paths))
+}
+
 print_report <- function(requirements_path, mirror_path) {
   ensure_windows()
   packages <- read_requirements(requirements_path)
@@ -180,6 +230,8 @@ print_report <- function(requirements_path, mirror_path) {
     warning(sprintf("Missing %d package(s) in mirror: %s", length(missing), paste(missing, collapse = ", ")))
   }
 
+  integrity_hashes <- load_integrity_manifest(mirror_path)
+
   for (row in seq_len(nrow(matching))) {
     entry <- matching[row, ]
     name <- entry$Package
@@ -205,7 +257,14 @@ print_report <- function(requirements_path, mirror_path) {
       mirror
     }
 
-    cat(sprintf("%s\t%s\tCRAN\tReviewer\tInstaller\t%s\t%s\t%s\n", name, version, summary, url, location))
+    archive_name <- sprintf("%s_%s.zip", name, version)
+    hash <- if (length(integrity_hashes) && archive_name %in% names(integrity_hashes)) {
+      integrity_hashes[[archive_name]]
+    } else {
+      ""
+    }
+
+    cat(sprintf("%s\t%s\tCRAN\tReviewer\tInstaller\t%s\t%s\t%s\t%s\n", name, version, summary, url, location, hash))
   }
 }
 
