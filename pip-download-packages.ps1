@@ -229,21 +229,29 @@ foreach ($entry in $requirementEntries) {
     }
 }
 
+
+$downloadSkippedEntries = @()
+
 if ($retryFailures.Count -gt 0 -or $missingPackages.Count -gt 0) {
+
     if ($retryFailures.Count -gt 0) {
-        Write-Error "Some packages failed to download after retry: $($retryFailures -join ', ')"
+        Write-Warning "Some packages failed to download after retry: $($retryFailures -join ', ')"
+        $downloadSkippedEntries += $retryFailures
     }
 
     if ($missingPackages.Count -gt 0) {
-        Write-Error "Missing downloaded artifacts for: $($missingPackages -join ', ')"
-        Write-Host "Packages without artifacts:" -ForegroundColor Yellow
-        $missingPackages | ForEach-Object { Write-Host " - $_" }
+        Write-Warning "Missing downloaded artifacts for: $($missingPackages -join ', ')"
+        Write-Warning "Packages without artifacts:" 
+        $missingPackages | ForEach-Object { Write-Warning " - $_" }
+        $downloadSkippedEntries += $missingPackages
     }
 
-    Exit-WithCleanup $null
+    Write-Warning "Proceeding to lock generation for packages with available artifacts only."
+} else {
+    Write-Host "All packages downloaded and verified."
 }
 
-Write-Host "All packages downloaded and verified."
+$downloadSkippedEntries = $downloadSkippedEntries | Sort-Object -Unique
 
 Write-Host "Download process complete."
 
@@ -254,9 +262,21 @@ $lockFile = "C:\admin\package-management\pip_requirements_multi_version.lock"
 Write-Host "Generating lock file: $lockFile"
 
 $rawRequirements = Get-Content $requirementsFile | ForEach-Object { $_.Trim() }
-$requirements = $rawRequirements | Where-Object { $_ -and -not $_.StartsWith('#') }
+$skippedNormalized = $downloadSkippedEntries | ForEach-Object {
+    $packageName = Get-PackageNameFromRequirement $_
+    if ($packageName) { $packageName }
+} | Sort-Object -Unique
+
+$requirements = $rawRequirements | Where-Object { $_ -and -not $_.StartsWith('#') } | Where-Object {
+    $normalizedName = Get-PackageNameFromRequirement $_
+
+    if (-not $normalizedName) { return $true }
+
+    return -not ($skippedNormalized -contains $normalizedName)
+}
 
 $lockEntries = @()
+$skippedLockEntries = @()
 foreach ($req in $requirements) {
     if ($req -notmatch '^(?<name>[^=<>!~\s]+?)(?:\[.*\])?==(?<version>[^\s;]+)') {
         Exit-WithCleanup "Invalid requirement format: $req"
@@ -267,7 +287,9 @@ foreach ($req in $requirements) {
     $artifacts = Get-PackageArtifacts -Name $name -Version $version -Directory $outputDir
 
     if (-not $artifacts -or $artifacts.Count -eq 0) {
-        Exit-WithCleanup "No artifacts found for $name==$version in $outputDir."
+        $skippedLockEntries += $req
+        Write-Warning "Skipping $req because no artifacts were found in $outputDir."
+        continue
     }
 
     $hashParts = foreach ($artifact in $artifacts) {
@@ -286,6 +308,15 @@ if ($lockEntries.Count -eq 0) {
     Exit-WithCleanup "No requirements found to lock."
 }
 
+if ($skippedLockEntries.Count -gt 0) {
+    Write-Warning "The following requirements were skipped during lock creation due to missing artifacts:"
+    $skippedLockEntries | Sort-Object -Unique | ForEach-Object { Write-Warning " - $_" }
+}
+
 Set-Content -Path $lockFile -Value $lockEntries
-Write-Host "Lock file written to $lockFile" -ForegroundColor Green
+if ($skippedLockEntries.Count -gt 0 -or $skippedNormalized.Count -gt 0) {
+    Write-Host "Partial lock written to $lockFile (some requirements were skipped; see warnings)." -ForegroundColor Yellow
+} else {
+    Write-Host "Lock file written to $lockFile" -ForegroundColor Green
+}
 Set-Location $originalLocation
