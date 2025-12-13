@@ -2,15 +2,36 @@
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $pipMirrorPath = "C:\admin\pip_mirror"
+$integrityBaselinePath = Join-Path -Path $pipMirrorPath -ChildPath "integrity-baseline.json"
 
 if (-not (Test-Path $pipMirrorPath)) {
     Write-Error "Pip mirror directory not found: $pipMirrorPath"
     exit 1
 }
 
+# Optional SHA-256 hash lookup sourced from mirror-integrity-check.ps1 output
+$hashByFilename = @{}
+if (Test-Path $integrityBaselinePath) {
+    try {
+        $baseline = Get-Content -Path $integrityBaselinePath -Raw | ConvertFrom-Json -Depth 6
+        if ($baseline.Mirror -and $baseline.Mirror.Files) {
+            foreach ($file in $baseline.Mirror.Files) {
+                $name = [System.IO.Path]::GetFileName($file.RelativePath)
+                if ($name -and -not $hashByFilename.ContainsKey($name)) {
+                    $hashByFilename[$name] = $file.Hash
+                }
+            }
+        }
+    }
+    catch {
+        Write-Warning "Failed to parse integrity baseline at $integrityBaselinePath : $_"
+    }
+}
+
 $packageInfo = Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
     $whlFile = $_.FullName
     $filename = $_.BaseName
+    $hash = $hashByFilename[$_.Name]
 
     try {
         # Open the wheel file directly as a ZIP archive
@@ -54,8 +75,8 @@ $packageInfo = Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Obje
 
             if ($name -and $version) {
                 $location = $pipMirrorPath
-                # Output format: Name, Version, Source, Reviewer, Installer, Summary, Home-page, Location
-                "$name`t$version`tPyPi`tReviewer`tInstaller`t$summary`t$homepage`t$location"
+                # Output format: Name, Version, Source, Reviewer, Installer, Summary, Home-page, Location, Hash
+                "$name`t$version`tPyPi`tReviewer`tInstaller`t$summary`t$homepage`t$location`t$hash"
             }
         }
 
