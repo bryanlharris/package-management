@@ -69,7 +69,7 @@ function Get-PackageArtifacts {
     $normalizedName = Normalize-PackageName $Name
     $files = Get-ChildItem -Path $Directory -File -ErrorAction SilentlyContinue
     $matching = foreach ($file in $files) {
-        if ($file.Name -notmatch '^(.+)-([0-9].+?)\.(tar\.gz|zip|whl)$') { continue }
+        if ($file.Name -notmatch '^(.+?)-([0-9][0-9A-Za-z\.]*)(?:-[^-]+)*\.(tar\.gz|zip|whl)$') { continue }
 
         $fileName = $matches[1]
         $fileVersion = $matches[2]
