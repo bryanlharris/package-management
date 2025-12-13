@@ -94,10 +94,10 @@ function Resolve-Location {
 
 function Format-Row {
     param(
-        [Parameter(Mandatory = $true)][string]$Package,
-        [Parameter(Mandatory = $true)][string]$Version,
-        [Parameter(Mandatory = $true)][string]$Description,
-        [Parameter(Mandatory = $true)][string]$Location,
+        [string]$Package,
+        [string]$Version = "",
+        [string]$Description = "",
+        [string]$Location = "",
         [string]$Url = "",
         [string]$SscFound = "",
         [string]$SscUrl = ""
@@ -111,15 +111,20 @@ function Format-Row {
         return $field.ToString().Replace("`t", " ")
     }
 
+    $packageValue = if ([string]::IsNullOrWhiteSpace($Package)) { "unknown" } else { $Package }
+    $versionValue = if ($null -eq $Version) { "" } else { $Version }
+    $descriptionValue = if ($null -eq $Description) { "" } else { $Description }
+    $locationValue = if ([string]::IsNullOrWhiteSpace($Location)) { "unknown" } else { $Location }
+
     $columns = @(
-        $Package,
-        $Version,
+        $packageValue,
+        $versionValue,
         'Stata',
         'Reviewer',
         'Installer',
-        $Description,
+        $descriptionValue,
         $Url,
-        $Location,
+        $locationValue,
         $SscFound,
         $SscUrl
     )
