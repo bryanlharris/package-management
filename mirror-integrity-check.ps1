@@ -222,7 +222,7 @@ function Verify-Baseline {
             }
         }
 
-        Write-Log "Verification complete for $script:MirrorRoot. Missing: $($missing.Count), Unexpected: $($unexpected.Count), Hash mismatches: $((($shared | Where-Object { $expectedFiles[$_] .Hash -ne $actualFiles[$_].Hash }).Count))" 'INFO'
+        Write-Log "Verification complete for $script:MirrorRoot. Missing: $($missing.Count), Unexpected: $($unexpected.Count), Hash mismatches: $((($shared | Where-Object { $expectedFiles[$_].Hash -ne $actualFiles[$_].Hash }).Count))" 'INFO'
     }
 
     if ($discrepancies.Count -gt 0) {
