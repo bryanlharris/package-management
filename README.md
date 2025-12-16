@@ -15,6 +15,7 @@ Ask someone from Office of Research or Bryan Harris where that's at.
 | logging-utils.psm1              | Shared PowerShell logging utilities used by other scripts             |
 | integrity-check.ps1             | Generates and validates integrity metadata for a local package mirror |
 | pip-client-lockdown.ps1         | Enforces pip client configuration and restrictions                    |
+| lockdown-check.ps1              | Verifies pip client lockdown settings and event log reporting         |
 | pip-download-packages.ps1       | Downloads Python packages into a controlled mirror                    |
 | pip-install-build-tools.ps1     | Installs Python build dependencies required for packaging             |
 | pip-print-csv.ps1               | Exports installed Python package metadata to CSV                      |
@@ -37,18 +38,30 @@ Legacy and experimental scripts live under the `archive/` directory; see `archiv
 
 ## Usage examples
 
-- Create a baseline manifest for one mirror:
+ - Create a baseline manifest for one mirror:
   ```powershell
   & {
     .\integrity-check.ps1 -Mode baseline `
       -MirrorRoot "C:\admin\pip_mirror"
   }
   ```
-- Verify a mirror against an existing baseline:
+ - Verify a mirror against an existing baseline:
   ```powershell
   & {
     .\integrity-check.ps1 -Mode verify `
       -MirrorRoot "C:\admin\pip_mirror"
+  }
+  ```
+ - Validate that pip is locked down to the default mirror settings applied by `pip-client-lockdown.ps1`:
+  ```powershell
+  & {
+    .\lockdown-check.ps1
+  }
+  ```
+ - Validate pip lockdown using an explicit Python interpreter:
+  ```powershell
+  & {
+    .\lockdown-check.ps1 -PythonLauncher "C:\\Python311\\python.exe"
   }
   ```
 
@@ -61,6 +74,18 @@ Use these sample SPL queries to locate events written by
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="MirrorIntegrityCheck" EventCode=1000
+  ```
+
+- Successful pip lockdown validation events from `lockdown-check.ps1`:
+  ```spl
+  index=windows host="my-mirror-host" source="WinEventLog:Application"
+    SourceName="PipClientLockdownCheck" EventCode=1000 earliest=-24h latest=now
+  ```
+
+- Pip lockdown validation failures (missing find-links/no-index settings):
+  ```spl
+  index=windows host="my-mirror-host" source="WinEventLog:Application"
+    SourceName="PipClientLockdownCheck" EventCode=1001 earliest=-24h latest=now
   ```
 
 - Errors from mirror verification runs (helps highlight hash mismatches or
