@@ -4,6 +4,11 @@ $informationEventId = 1000
 
 Import-Module "$PSScriptRoot/logging-utils.psm1" -Force
 
+[CmdletBinding()]
+param(
+    [string]$MirrorPath = "C:\admin\pip_mirror"
+)
+
 $eventLogConfig = @{
     LogName                  = $logName
     EventSource              = $eventSource
@@ -28,15 +33,18 @@ function Write-SummaryEvent {
     Write-EventLogRecord @eventLogConfig -Message $summary -EntryType Information
 }
 
-$mirrorPath = "C:\admin\pip_mirror"
+$mirrorPath = [System.IO.Path]::GetFullPath($MirrorPath)
 $configDirectory = "C:\ProgramData\pip"
 $configPath = "$configDirectory\pip.ini"
 
-$originalLocation = Get-Location
+$mirrorPathExists = Test-Path $mirrorPath
+if (-not $mirrorPathExists) {
+    $errorMessage = "Mirror path '$mirrorPath' does not exist. Provide an existing path with -MirrorPath."
+    Write-Error $errorMessage
+    throw $errorMessage
+}
 
 try {
-    Set-Location $mirrorPath
-
     $createdPipDirectory = $false
     # Ensure pip folder exists in ProgramData
     if (-not (Test-Path $configDirectory)) {
@@ -50,9 +58,10 @@ try {
         $restoredPipIni = $true
     }
 
+    $mirrorUri = [System.Uri]::new($mirrorPath)
     $pipConfig = @"
 [global]
-find-links = file:///C:/admin/pip_mirror
+find-links = $($mirrorUri.AbsoluteUri)
 no-index = true
 "@
     [System.IO.File]::WriteAllText($configPath, $pipConfig)
@@ -64,7 +73,4 @@ no-index = true
     )
 
     Write-SummaryEvent -CreatedPipDirectory $createdPipDirectory -RestoredPipIni $restoredPipIni -ConfigPath $configPath -MirrorPath $mirrorPath
-}
-finally {
-    Set-Location $originalLocation
 }
