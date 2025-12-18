@@ -49,7 +49,7 @@ function Register-PipClientLockdownCompleters {
     if (-not $commandInfo) { return }
 
     $parameters = $commandInfo.Parameters
-    if (-not $parameters.ContainsKey('MirrorPath')) { return }
+    if (-not $parameters -or -not $parameters.ContainsKey('MirrorPath')) { return }
 
     $completer = $parameters['MirrorPath'].Attributes |
         Where-Object { $_ -is [System.Management.Automation.ArgumentCompleterAttribute] } |
@@ -58,8 +58,18 @@ function Register-PipClientLockdownCompleters {
     if (-not $completer) { return }
 
     $scriptName = Split-Path -Path $ScriptPath -Leaf
-    Register-ArgumentCompleter -CommandName $scriptName -ParameterName 'MirrorPath' -ScriptBlock $completer.ScriptBlock
-    Register-ArgumentCompleter -CommandName $ScriptPath -ParameterName 'MirrorPath' -ScriptBlock $completer.ScriptBlock
+    $commandNames = @(
+        $scriptName
+        ".\\$scriptName"
+        "./$scriptName"
+        $ScriptPath
+        $commandInfo.Source
+        $commandInfo.Definition
+    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique
+
+    if (-not $commandNames) { return }
+
+    Register-ArgumentCompleter -CommandName $commandNames -ParameterName 'MirrorPath' -ScriptBlock $completer.ScriptBlock
 }
 
 Register-PipClientLockdownCompleters
@@ -121,4 +131,7 @@ no-index = true
     )
 
     Write-SummaryEvent -CreatedPipDirectory $createdPipDirectory -RestoredPipIni $restoredPipIni -ConfigPath $configPath -MirrorPath $mirrorPath
+}
+catch {
+    throw
 }
