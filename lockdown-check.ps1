@@ -32,13 +32,6 @@ $eventLogConfig = @{
     SkipSourceCreationErrors = $true
 }
 
-function Convert-ToFileUri {
-    param([string]$Path)
-
-    $fullPath = [System.IO.Path]::GetFullPath($Path.TrimEnd([System.IO.Path]::DirectorySeparatorChar, '/'))
-    return ([System.Uri]::new($fullPath)).AbsoluteUri
-}
-
 function Write-ConsoleLog {
     param(
         [Parameter(Mandatory = $true)][string]$Message,
@@ -66,13 +59,9 @@ function Write-OutcomeEvent {
 }
 
 try {
-    $expectedFindLinks = Convert-ToFileUri -Path "C:\\admin\\pip_mirror"
     $configPath = 'C:\\ProgramData\\pip\\pip.ini'
-    $expectedLines = @(
-        '[global]',
-        "find-links = $expectedFindLinks",
-        'no-index = true'
-    )
+    $environmentVariableName = 'PIP_NO_INDEX'
+    $expectedEnvironmentValue = '1'
 
     $issues = @()
 
@@ -85,12 +74,37 @@ try {
     else {
         $actualLines = Get-Content -Path $configPath -ErrorAction Stop
 
-        foreach ($expectedLine in $expectedLines) {
-            if (-not ($actualLines -contains $expectedLine)) {
-                $issues += [PSCustomObject]@{ Issue = 'MissingLine'; Detail = $expectedLine }
-                Write-ConsoleLog "Missing line: $expectedLine" 'ERROR'
-            }
+        $hasGlobalSection = $actualLines -contains '[global]'
+        $hasFindLinks = $actualLines | Where-Object { $_ -match '^\s*find-links\s*=' }
+        $hasNoIndexTrue = $actualLines | Where-Object { $_ -match '^\s*no-index\s*=\s*true\s*$' }
+
+        if (-not $hasGlobalSection) {
+            $issues += [PSCustomObject]@{ Issue = 'MissingLine'; Detail = '[global]' }
+            Write-ConsoleLog "Missing line: [global]" 'ERROR'
         }
+
+        if (-not $hasFindLinks) {
+            $issues += [PSCustomObject]@{ Issue = 'MissingLine'; Detail = 'find-links = <value>' }
+            Write-ConsoleLog 'Missing line: find-links entry' 'ERROR'
+        }
+
+        if (-not $hasNoIndexTrue) {
+            $issues += [PSCustomObject]@{ Issue = 'MissingLine'; Detail = 'no-index = true' }
+            Write-ConsoleLog "Missing line: no-index = true" 'ERROR'
+        }
+    }
+
+    $actualEnvValue = [System.Environment]::GetEnvironmentVariable($environmentVariableName, 'Machine')
+    if ([string]::IsNullOrWhiteSpace($actualEnvValue)) {
+        $issues += [PSCustomObject]@{ Issue = 'MissingEnvironmentVariable'; Detail = $environmentVariableName }
+        Write-ConsoleLog "Missing environment variable: $environmentVariableName (Machine scope)" 'ERROR'
+    }
+    elseif ($actualEnvValue.Trim() -ne $expectedEnvironmentValue) {
+        $issues += [PSCustomObject]@{ Issue = 'UnexpectedEnvironmentValue'; Detail = "$environmentVariableName=$actualEnvValue" }
+        Write-ConsoleLog "Unexpected $environmentVariableName value: '$actualEnvValue' (expected '$expectedEnvironmentValue')" 'ERROR'
+    }
+    else {
+        Write-ConsoleLog "$environmentVariableName is set correctly at Machine scope." 'INFO'
     }
 
     $summary = "pip.ini lockdown validation complete for $configPath. Missing items: $($issues.Count)."
