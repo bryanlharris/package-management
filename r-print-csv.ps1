@@ -33,14 +33,14 @@ $summaryType = if (($rExitCode -ne 0) -or ($clipExitCode -ne 0)) { 'Error' } els
 Write-EventLogRecord @eventLogConfig -Message $summaryMessage -EntryType $summaryType
 
 if ($clipExitCode -ne 0) {
-    Write-Host "clip.exe returned exit code $clipExitCode while copying the report" -ForegroundColor Yellow 1>&2
+    Write-Host "clip.exe returned exit code $clipExitCode while copying the report" -ForegroundColor Yellow
 }
 
 if ($summaryType -eq 'Information') {
-    Write-Host "Copied R package report to clipboard" -ForegroundColor Yellow 1>&2
+    Write-Host "Copied R package report to clipboard" -ForegroundColor Yellow
 }
 else {
-    Write-Host "R package report encountered issues while copying to clipboard" -ForegroundColor Yellow 1>&2
+    Write-Host "R package report encountered issues while copying to clipboard" -ForegroundColor Yellow
 }
 
 exit $rExitCode
