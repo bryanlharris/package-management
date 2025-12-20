@@ -8,26 +8,26 @@ Ask someone from Office of Research or Bryan Harris where that's at.
 
 ## Script and file reference
 
-| Script / File Name              | What it does                                                          |
-| ------------------------------- | --------------------------------------------------------------------- |
-| utilities/add-git-pull.reg      | Adds a Windows Explorer context-menu entry for “Git Pull Here”        |
+| Script / File Name                | What it does                                                          |
+| --------------------------------- | --------------------------------------------------------------------- |
+| utilities/add-git-pull.reg        | Adds a Windows Explorer context-menu entry for “Git Pull Here”        |
 | utilities/install-ps1-modules.ps1 | Installs PSReadLine and posh-git modules and imports them via profile |
-| logging-utils.psm1              | Shared PowerShell logging utilities used by other scripts             |
-| integrity-check.ps1             | Generates and validates integrity metadata for a local package mirror |
-| pip-client-lockdown.ps1         | Enforces pip client configuration and restrictions                    |
-| lockdown-check.ps1              | Verifies pip client lockdown settings and event log reporting         |
-| pip-download-packages.ps1       | Downloads Python packages into a controlled mirror                    |
-| pip-install-build-tools.ps1     | Installs Python build dependencies required for packaging             |
-| pip-print-csv.ps1               | Exports installed Python package metadata to CSV                      |
-| r-build-mirror.R                | Builds a local mirror of R packages                                   |
-| r-install-baseline.R            | Installs a baseline set of approved R packages                        |
-| r-print-csv.R                   | Exports installed R package metadata to CSV                           |
-| r-print-csv.ps1                 | PowerShell wrapper for R CSV export                                   |
-| stata-install-baseline.do       | Installs a baseline set of Stata packages                             |
-| stata-print-csv.ps1             | PowerShell wrapper for Stata CSV export                               |
-| anaconda-print-csv.ps1          | Exports Anaconda/conda package metadata to CSV                        |
-| controls-mapping.csv            | Control-mapping table for compliance reporting (NIST / FedRAMP style) |
-| controls-mapping.yaml           | YAML version of the same control-mapping data for automation          |
+| logging-utils.psm1                | Shared PowerShell logging utilities used by other scripts             |
+| integrity-check.ps1               | Generates and validates integrity metadata for a local package mirror |
+| pip-client-lockdown.ps1           | Enforces pip client configuration and restrictions                    |
+| lockdown-check.ps1                | Verifies pip client lockdown settings and event log reporting         |
+| pip-download-packages.ps1         | Downloads Python packages into a controlled mirror                    |
+| pip-install-build-tools.ps1       | Installs Python build dependencies required for packaging             |
+| pip-print-csv.ps1                 | Exports installed Python package metadata to CSV                      |
+| r-build-mirror.R                  | Builds a local mirror of R packages                                   |
+| r-install-baseline.R              | Installs a baseline set of approved R packages                        |
+| r-print-csv.R                     | Exports installed R package metadata to CSV                           |
+| r-print-csv.ps1                   | PowerShell wrapper for R CSV export                                   |
+| stata-install-baseline.do         | Installs a baseline set of Stata packages                             |
+| stata-print-csv.ps1               | PowerShell wrapper for Stata CSV export                               |
+| anaconda-print-csv.ps1            | Exports Anaconda/conda package metadata to CSV                        |
+| controls-mapping.csv              | Control-mapping table for compliance reporting (NIST / FedRAMP style) |
+| controls-mapping.yaml             | YAML version of the same control-mapping data for automation          |
 
 Legacy and experimental scripts live under the `archive/` directory; see `archive/README.md` for details.
 
@@ -36,43 +36,59 @@ Legacy and experimental scripts live under the `archive/` directory; see `archiv
 - [NIST SP 800-53 Rev. 5 Controls (Excel)](https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final/docs/sp800-53r5-controls.xlsx)
 - [FedRAMP Moderate Baseline Security Controls (Excel)](https://www.fedramp.gov/resources/documents/FedRAMP_Moderate_Security_Controls.xlsx)
 
+## Command usage table
+
+| Command | Purpose |
+| --- | --- |
+| `.\integrity-check.ps1 -Mode baseline -MirrorRoot "C:\admin\pip_mirror"` | Create a baseline integrity manifest for a mirror. |
+| `.\integrity-check.ps1 -Mode verify -MirrorRoot "C:\admin\pip_mirror"` | Verify a mirror against a previously captured baseline. |
+| `.\lockdown-check.ps1` | Validate the default pip lockdown configuration. |
+| `.\lockdown-check.ps1 -PythonLauncher "C:\Python311\python.exe"` | Validate lockdown settings for a specific Python interpreter. |
+
 ## Usage examples
 
- - Create a baseline manifest for one mirror:
-  ```powershell
-  & {
-    .\integrity-check.ps1 -Mode baseline `
-      -MirrorRoot "C:\admin\pip_mirror"
-  }
-  ```
- - Verify a mirror against an existing baseline:
-  ```powershell
-  & {
-    .\integrity-check.ps1 -Mode verify `
-      -MirrorRoot "C:\admin\pip_mirror"
-  }
-  ```
- - Validate that pip is locked down to the default mirror settings applied by `pip-client-lockdown.ps1`:
-  ```powershell
-  & {
-    .\lockdown-check.ps1
-  }
-  ```
- - Validate pip lockdown using an explicit Python interpreter:
-  ```powershell
-  & {
-    .\lockdown-check.ps1 -PythonLauncher "C:\\Python311\\python.exe"
-  }
-  ```
+Create a baseline manifest for one mirror.
+
+```powershell
+& {
+  .\integrity-check.ps1 -Mode baseline `
+    -MirrorRoot "C:\admin\pip_mirror"
+}
+```
+
+Verify a mirror against an existing baseline.
+
+```powershell
+& {
+  .\integrity-check.ps1 -Mode verify `
+    -MirrorRoot "C:\admin\pip_mirror"
+}
+```
+
+Validate that pip is locked down to the default mirror settings applied by `pip-client-lockdown.ps1`.
+
+```powershell
+& {
+  .\lockdown-check.ps1
+}
+```
+
+Validate pip lockdown using an explicit Python interpreter.
+
+```powershell
+& {
+  .\lockdown-check.ps1 -PythonLauncher "C:\Python311\python.exe"
+}
+```
 
 ## Splunk search examples
+
 Use these sample SPL queries to locate events written by
 `integrity-check.ps1` on a specific Windows host (replace
 `my-mirror-host` with your hostname).
 
-- Recent informational events emitted by the script’s Windows event log source,
-  including a zero-results branch you can use to drive an email alert when the
-  scheduled task fails to run:
+- **Recent informational events emitted by the script’s Windows event log source, including a zero-results branch you can use to drive an email alert when the scheduled task fails to run.**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="MirrorIntegrityCheck" earliest=-24h latest=now
@@ -80,15 +96,15 @@ Use these sample SPL queries to locate events written by
   | appendpipe [| stats count | where count=0 | eval Message="No MirrorIntegrityCheck events in the past 24h — verify the scheduled task and notify via email."]
   ```
 
-- Errors from mirror verification runs (helps highlight hash mismatches or
-  missing files):
+- **Errors from mirror verification runs (helps highlight hash mismatches or missing files).**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="MirrorIntegrityCheck" EventCode=1001
   ```
 
-- Combined view showing both information and error events for a given time
-  window:
+- **Combined view showing both information and error events for a given time window.**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="MirrorIntegrityCheck"
@@ -96,21 +112,22 @@ Use these sample SPL queries to locate events written by
   | stats count BY EventCode, Message
   ```
 
-- Successful pip lockdown validation events from `lockdown-check.ps1`:
+- **Successful pip lockdown validation events from `lockdown-check.ps1`.**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="PipClientLockdownCheck" EventCode=1000 earliest=-24h latest=now
   ```
 
-- Pip lockdown validation failures (missing find-links/no-index settings):
+- **Pip lockdown validation failures (missing find-links/no-index settings).**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="PipClientLockdownCheck" EventCode=1001 earliest=-24h latest=now
   ```
 
-- Alert when the `PipClientLockdownCheck` source shows no successful runs in
-  the past 24 hours (returns a zero-row result you can wire to an email
-  alert):
+- **Alert when the `PipClientLockdownCheck` source shows no successful runs in the past 24 hours (returns a zero-row result you can wire to an email alert).**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="PipClientLockdownCheck"
@@ -124,30 +141,29 @@ Use these sample SPL queries to locate events written by
   | where ran_ok=0
   ```
 
-- Cleanup summary events emitted by `pip-cleanup-versions.ps1` when wheel or
-  source distribution files are removed:
+- **Cleanup summary events emitted by `pip-cleanup-versions.ps1` when wheel or source distribution files are removed.**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="PipCleanupVersions" EventCode=1000 earliest=-24h latest=now
   ```
 
-- Warning events from `pip-cleanup-versions.ps1` (filter by EventCode to
-  isolate only the warning entries):
+- **Warning events from `pip-cleanup-versions.ps1` (filter by EventCode to isolate only the warning entries).**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="PipCleanupVersions" EventCode=1001 earliest=-24h latest=now
   ```
 
-- Recent download summary events from `pip-download-packages.ps1` (the message
-  includes the Python version used and reminds you to re-run the
-  `integrity-check` baseline):
+- **Recent download summary events from `pip-download-packages.ps1` (the message includes the Python version used and reminds you to re-run the `integrity-check` baseline).**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="pip-download-packages" EventCode=1000 earliest=-24h latest=now
   ```
 
-- Filtered download summary events for a specific host and 2-hour window to
-  isolate a particular run:
+- **Filtered download summary events for a specific host and 2-hour window to isolate a particular run.**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="pip-download-packages" EventCode=1000
@@ -155,8 +171,8 @@ Use these sample SPL queries to locate events written by
   | table _time, host, Message
   ```
 
-- Clipboard report events emitted by `r-print-csv.ps1` (the message includes
-  the Rscript and `clip.exe` exit codes):
+- **Clipboard report events emitted by `r-print-csv.ps1` (the message includes the Rscript and `clip.exe` exit codes).**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="RPrintCsvReport" (EventCode=1000 OR EventCode=1001)
@@ -164,21 +180,30 @@ Use these sample SPL queries to locate events written by
   | table _time, host, EventCode, Message
   ```
 
-- Clipboard summary for `stata-print-csv.ps1` runs (EventCode 1001 indicates
-  the clipboard copy failed or no packages were found):
+- **R client lockdown summary and error events from `r-client-lockdown.ps1` (EventCode 1001 indicates the lockdown failed to write the R profile settings).**
+
+  ```spl
+  index=windows host="my-mirror-host" source="WinEventLog:Application"
+    SourceName="RClientLockdown" (EventCode=1000 OR EventCode=1001)
+    earliest=-24h latest=now
+  | table _time, host, EventCode, Message
+  ```
+
+- **Clipboard summary for `stata-print-csv.ps1` runs (EventCode 1001 indicates the clipboard copy failed or no packages were found).**
+
   ```spl
   index=windows host="my-mirror-host" source="WinEventLog:Application"
     SourceName="StataPrintCsvReport" (EventCode=1000 OR EventCode=1001)
     earliest=-24h latest=now
   | table _time, host, EventCode, Message
   ```
-
 ## Local Windows event log search examples
+
 Use PowerShell to retrieve the same `integrity-check.ps1` and
 `lockdown-check.ps1` events from your Windows 11 machine without Splunk.
 
-- Recent informational events from the script source (mirrors the first SPL
-  example):
+- **Recent informational events from the script source (mirrors the first SPL example).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -190,7 +215,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Recent error events (similar to the second SPL example):
+- **Recent error events (similar to the second SPL example).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -202,8 +228,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Combined informational and error events with counts by event ID (parallel to
-  the third SPL example):
+- **Combined informational and error events with counts by event ID (parallel to the third SPL example).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -215,8 +241,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Successful pip lockdown validation events from `lockdown-check.ps1` (shows
-  enforcement status for the requested interpreter):
+- **Successful pip lockdown validation events from `lockdown-check.ps1` (shows enforcement status for the requested interpreter).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -229,8 +255,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Lockdown validation failures from `lockdown-check.ps1` (missing find-links or
-  no-index settings):
+- **Lockdown validation failures from `lockdown-check.ps1` (missing find-links or no-index settings).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -243,8 +269,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Cleanup summary events recorded by `pip-cleanup-versions.ps1` (highlights how
-  many wheel and source distribution files were deleted):
+- **Cleanup summary events recorded by `pip-cleanup-versions.ps1` (highlights how many wheel and source distribution files were deleted).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -257,8 +283,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Warnings produced by `pip-cleanup-versions.ps1` (the script emits warning
-  events with the same provider name but a different ID):
+- **Warnings produced by `pip-cleanup-versions.ps1` (the script emits warning events with the same provider name but a different ID).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -271,8 +297,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Combined informational and warning events with counts by event ID (mirrors
-  the combined `MirrorIntegrityCheck` example above):
+- **Combined informational and warning events with counts by event ID (mirrors the combined `MirrorIntegrityCheck` example above).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -285,9 +311,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Download summary events written by `pip-download-packages.ps1` (the message
-  includes the Python version used and the reminder to re-run
-  `integrity-check.ps1` baseline):
+- **Download summary events written by `pip-download-packages.ps1` (the message includes the Python version used and the reminder to re-run `integrity-check.ps1` baseline).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -300,8 +325,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Lockdown summary events written by `pip-client-lockdown.ps1` (shows where the
-  script wrote `pip.ini` and whether an existing file was restored):
+- **Lockdown summary events written by `pip-client-lockdown.ps1` (shows where the script wrote `pip.ini` and whether an existing file was restored).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -314,7 +339,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Download summary events scoped to the past 2 hours on a specific host:
+- **Download summary events scoped to the past 2 hours on a specific host.**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -329,8 +355,8 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
   }
   ```
 
-- Clipboard copy status from `r-print-csv.ps1` (surface both successful and
-  error events):
+- **Clipboard copy status from `r-print-csv.ps1` (surface both successful and error events).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -338,13 +364,25 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
         ProviderName = 'RPrintCsvReport'
         Id           = @(1000,1001)
         StartTime    = (Get-Date).AddHours(-24)
-        EndTime      = Get-Date
     } | Format-List -Property TimeCreated, Id, ProviderName, Message
   }
   ```
 
-- Clipboard copy status from `stata-print-csv.ps1` (EventCode 1001 captures
-  clipboard failures or empty reports):
+- **R client lockdown events from `r-client-lockdown.ps1` (shows the paths to the R profile settings or any failures).**
+
+  ```powershell
+  & {
+    Get-WinEvent -FilterHashtable @{
+        LogName      = 'Application'
+        ProviderName = 'RClientLockdown'
+        Id           = @(1000,1001)
+        StartTime    = (Get-Date).AddHours(-24)
+    } | Format-List -Property TimeCreated, Id, ProviderName, Message
+  }
+  ```
+
+- **Clipboard copy status from `stata-print-csv.ps1` (EventCode 1001 captures clipboard failures or empty reports).**
+
   ```powershell
   & {
     Get-WinEvent -FilterHashtable @{
@@ -352,26 +390,39 @@ Use PowerShell to retrieve the same `integrity-check.ps1` and
         ProviderName = 'StataPrintCsvReport'
         Id           = @(1000,1001)
         StartTime    = (Get-Date).AddHours(-24)
-        EndTime      = Get-Date
     } | Format-List -Property TimeCreated, Id, ProviderName, Message
   }
   ```
-
 ## PowerShell 5.1 multi-line command entry
+
 Enable PowerShell 5.1 to treat multi-line commands and braced (`{ }`) blocks
 as single entries in the command history by loading `PSReadLine` from your
 user profile:
 
-```powershell
-Install-Module PSReadLine -Scope CurrentUser -Force
+1. **Install PSReadLine.**
 
-$profilePath = $PROFILE.CurrentUserCurrentHost
+   ```powershell
+   Install-Module PSReadLine -Scope CurrentUser -Force
+   ```
 
-if (-not (Test-Path $profilePath)) {
-    New-Item -ItemType File -Path $profilePath -Force | Out-Null
-}
+2. **Define the profile path.**
 
-Add-Content -Path $profilePath -Value 'Import-Module PSReadLine'
+   ```powershell
+   $profilePath = $PROFILE.CurrentUserCurrentHost
+   ```
 
-Import-Module PSReadLine
-```
+3. **Ensure the profile file exists.**
+
+   ```powershell
+   if (-not (Test-Path $profilePath)) {
+       New-Item -ItemType File -Path $profilePath -Force | Out-Null
+   }
+   ```
+
+4. **Add PSReadLine to the profile and import it.**
+
+   ```powershell
+   Add-Content -Path $profilePath -Value 'Import-Module PSReadLine'
+
+   Import-Module PSReadLine
+   ```
