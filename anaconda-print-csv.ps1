@@ -199,7 +199,9 @@ foreach ($envFile in $environmentFiles) {
     if (-not $envData) { continue }
 
     $envName = if ($envData.Name) { $envData.Name } else { $envFile.BaseName }
-    $owner = $envFile.Directory.Name
+    $resolvedEnvFilePath = (Resolve-Path -LiteralPath $envFile.FullName).ProviderPath
+    $relativePath = $resolvedEnvFilePath.Substring($EnvironmentRoot.Length).TrimStart('\', '/')
+    $owner = ($relativePath -split '[\\/]', 2)[0]
     $sanitizedOwner = $owner -replace "\t", ' '
     $sanitizedEnv = $envName -replace "\t", ' '
 
