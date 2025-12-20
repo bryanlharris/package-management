@@ -223,9 +223,9 @@ if ($rows.Count -gt 0) {
         Write-Host "Copied Anaconda environment package list to clipboard" -ForegroundColor Yellow
     }
     else {
-        Write-Host "Failed to copy Anaconda environment package list to clipboard (exit code $LASTEXITCODE)" -ForegroundColor Yellow 1>&2
+        Write-Host "Failed to copy Anaconda environment package list to clipboard (exit code $LASTEXITCODE)" -ForegroundColor Yellow
     }
 }
 else {
-    Write-Host "No package information found to copy" -ForegroundColor Yellow 1>&2
+    Write-Host "No package information found to copy" -ForegroundColor Yellow
 }
