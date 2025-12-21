@@ -1,7 +1,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
-    [string]$EnvironmentRoot = 'C:\Users'
+    [string]$EnvironmentRoot = 'C:\Users',
+
+    [Parameter(Mandatory = $false)]
+    [int]$MaxDepth = 6
 )
 
 try {
@@ -117,11 +120,15 @@ function Get-PackageFromString {
     $clean = $Entry.Trim()
     if (-not $clean) { return $null }
 
-    $separatorIndex = $clean.IndexOf('==')
+    $separatorIndex = $clean.IndexOf('~=')
     $separatorLength = 2
     if ($separatorIndex -lt 0) {
-        $separatorIndex = $clean.IndexOf('=')
-        $separatorLength = 1
+        $separatorIndex = $clean.IndexOf('==')
+        $separatorLength = 2
+        if ($separatorIndex -lt 0) {
+            $separatorIndex = $clean.IndexOf('=')
+            $separatorLength = 1
+        }
     }
 
     if ($separatorIndex -gt 0) {
@@ -186,7 +193,43 @@ function Get-PythonVersion {
     return ''
 }
 
-$environmentFiles = Get-ChildItem -Path $EnvironmentRoot -Recurse -File -Include '*.json','*.yml','*.yaml'
+$extensions = @('*.json', '*.yml', '*.yaml')
+$excludedDirectories = @('AppData', 'node_modules', '.conda', 'Anaconda3\pkgs')
+$getChildItemParams = @{
+    Path = $EnvironmentRoot
+    Recurse = $true
+    File = $true
+    Filter = $null
+    ErrorAction = 'SilentlyContinue'
+    Attributes = '!ReparsePoint'
+    Exclude = $excludedDirectories
+}
+
+if ($PSVersionTable.PSVersion.Major -ge 7) {
+    $getChildItemParams['Depth'] = $MaxDepth
+}
+
+$environmentFiles = foreach ($extension in $extensions) {
+    $getChildItemParams['Filter'] = $extension
+    Get-ChildItem @getChildItemParams
+}
+$normalizedEnvironmentRoot = $EnvironmentRoot.TrimEnd('\', '/')
+if ($environmentFiles) {
+    $environmentFiles = $environmentFiles | Where-Object {
+        $resolvedPath = $_.FullName
+        if (-not $resolvedPath.StartsWith($normalizedEnvironmentRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+
+        $relativePath = $resolvedPath.Substring($normalizedEnvironmentRoot.Length).TrimStart('\', '/')
+        if (-not $relativePath) {
+            return $true
+        }
+
+        $depth = ($relativePath -split '[\\/]').Count - 1
+        $depth -le $MaxDepth
+    }
+}
 if (-not $environmentFiles) {
     Write-Error "No environment export files (*.json, *.yml, *.yaml) found under $EnvironmentRoot"
     exit 1
@@ -198,10 +241,15 @@ foreach ($envFile in $environmentFiles) {
     $envData = Read-EnvironmentFile -Path $envFile.FullName
     if (-not $envData) { continue }
 
-    $envName = if ($envData.Name) { $envData.Name } else { $envFile.BaseName }
-    $owner = $envFile.Directory.Name
+    $resolvedEnvFilePath = (Resolve-Path -LiteralPath $envFile.FullName).ProviderPath
+    $relativePath = $resolvedEnvFilePath.Substring($EnvironmentRoot.Length).TrimStart('\', '/')
+    # Keep owner derived from the relative path, not the directory name.
+    $owner = ($relativePath -split '[\\/]', 2)[0]
+    $folderEnvName = $envFile.Directory.Name
+    $fileEnvName = if ($envData.Name) { $envData.Name } else { $envFile.BaseName }
     $sanitizedOwner = $owner -replace "\t", ' '
-    $sanitizedEnv = $envName -replace "\t", ' '
+    $sanitizedFolderEnvName = $folderEnvName -replace "\t", ' '
+    $sanitizedFileEnvName = $fileEnvName -replace "\t", ' '
 
     $dependencies = $envData.Dependencies
     if (-not $dependencies) { continue }
@@ -213,7 +261,7 @@ foreach ($envFile in $environmentFiles) {
         $sanitizedName = $package.Name -replace "\t", ' '
         $sanitizedVersion = $package.Version -replace "\t", ' '
         $sanitizedPython = $pythonVersion -replace "\t", ' '
-        $rows += "$sanitizedOwner`t$sanitizedEnv`t$sanitizedName`t$sanitizedVersion`t$sanitizedPython"
+        $rows += "$sanitizedOwner`t$sanitizedFolderEnvName`t$sanitizedFileEnvName`t$sanitizedName`t$sanitizedVersion`t$sanitizedPython"
     }
 }
 

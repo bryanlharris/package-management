@@ -1,4 +1,15 @@
 $originalLocation = Get-Location
+$pipIniPath = "C:\ProgramData\pip\pip.ini"
+$pipIniDisabledPath = "$pipIniPath.disabled"
+$pipIniBackedUp = $false
+
+function Restore-PipIni {
+    if (-not $pipIniBackedUp) { return }
+
+    if (Test-Path -Path $pipIniDisabledPath -PathType Leaf) {
+        Rename-Item $pipIniDisabledPath $pipIniPath -Force -ErrorAction SilentlyContinue
+    }
+}
 
 function Exit-WithCleanup {
     param([string]$message)
@@ -9,6 +20,7 @@ function Exit-WithCleanup {
     } else {
         Write-FailureEvent -Message "pip-download-packages.ps1 FAILED without a specific error message."
     }
+    Restore-PipIni
     Set-Location $originalLocation
     exit 1
 }
@@ -44,7 +56,7 @@ function Get-PackageArtifacts {
     $normalizedName = Normalize-PackageName $Name
     $files = Get-ChildItem -Path $Directory -File -ErrorAction SilentlyContinue
     $matching = foreach ($file in $files) {
-        if ($file.Name -notmatch '^(.+?)-([0-9][0-9A-Za-z\.]*)(?:-[^-]+)*\.(tar\.gz|zip|whl)$') { continue }
+        if ($file.Name -notmatch '^(.+?)-([0-9][0-9A-Za-z\.\+!]*)(?:-[^-]+)*\.(tar\.gz|zip|whl)$') { continue }
 
         $fileName = $matches[1]
         $fileVersion = $matches[2]
@@ -213,8 +225,11 @@ foreach ($version in $uniqueVersions) {
 }
 
 # Disable pip.ini temporarily
-Remove-Item "C:\ProgramData\pip\pip.ini.disabled" -Force -ErrorAction SilentlyContinue
-Rename-Item "C:\ProgramData\pip\pip.ini" "C:\ProgramData\pip\pip.ini.disabled" -ErrorAction SilentlyContinue
+if (Test-Path -Path $pipIniPath -PathType Leaf) {
+    Remove-Item $pipIniDisabledPath -Force -ErrorAction SilentlyContinue
+    Rename-Item $pipIniPath $pipIniDisabledPath -ErrorAction SilentlyContinue
+    $pipIniBackedUp = $true
+}
 
 New-Item -Path "C:\admin\pip_mirror" -ItemType Directory -Force | Out-Null
 Set-Location "C:\admin\pip_mirror"
@@ -291,9 +306,10 @@ function PackageHasArtifactsInDirectory {
 }
 
 $artifactNames = Get-ChildItem $outputDir -File | ForEach-Object {
-    $base = ($_.Name -split '-')[0]
-    Normalize-PackageName $base
-} | Sort-Object -Unique
+    if ($_.Name -match '^(.+?)-([0-9][0-9A-Za-z\.\+!]*)(?:-[^-]+)*\.(tar\.gz|zip|whl)$') {
+        Normalize-PackageName $matches[1]
+    }
+} | Where-Object { $_ } | Sort-Object -Unique
 
 $failedPackages = $failedPackages | Where-Object { -not (PackageHasArtifactsInDirectory -Package $_ -ArtifactNames $artifactNames) }
 $retryFailures = $retryFailures | Where-Object { -not (PackageHasArtifactsInDirectory -Package $_ -ArtifactNames $artifactNames) }
@@ -341,4 +357,5 @@ Write-DownloadSummaryEvent `
     -PostRetryFailureCount $postRetryFailureCount `
     -MissingArtifactCount $missingArtifactCount
 
+Restore-PipIni
 Set-Location $originalLocation
