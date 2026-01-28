@@ -75,10 +75,6 @@ forvalues i = 1/`=_N' {
 
     display as text "[`i'/`=_N'] Installing `p' from `src' into `shared_root'\\`first'"
 
-    // Remove stale next.trk file if present (left behind by interrupted installs).
-    cap erase "`shared_root'\\next.trk"
-    cap erase "`c(sysdir_plus)'next.trk"
-
     // Use ssc install for SSC packages (Boston College RePEc archive), net install otherwise.
     if (strpos("`src'", "fmwww.bc.edu/RePEc/bocode") > 0) {
         display as text "    (using ssc install)"
