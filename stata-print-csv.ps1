@@ -50,9 +50,13 @@ function Get-StataHistoryKeysFromRequirements {
             continue
         }
 
-        $candidate = ($trimmed -split '\s+')[0]
-        $candidate = ($candidate -split ';')[0]
-        $candidate = ($candidate -split '(?i)(===|==|~=|!=|<=|>=|<|>|@)')[0]
+        $columns = $trimmed -split ',', 2
+        $candidate = $columns[0].Trim()
+
+        if ($candidate -ieq 'packagename') {
+            continue
+        }
+
         $key = Normalize-StataPackageKey -Name $candidate
 
         if ($key) {
