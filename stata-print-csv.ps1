@@ -16,6 +16,111 @@ $SummaryLineLimit = 30
 
 $HashManifestName = 'integrity-baseline.json'
 
+
+$ApprovedPackagesRepo = 'C:/admin/approved-packages'
+$RequirementsHistoryFile = 'stata_requirements.txt'
+
+function Normalize-StataPackageKey {
+    param(
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return ''
+    }
+
+    return $Name.Trim().ToLowerInvariant()
+}
+
+function Get-StataHistoryKeysFromRequirements {
+    param(
+        [string]$Content
+    )
+
+    $keys = New-Object System.Collections.Generic.List[string]
+
+    if ([string]::IsNullOrWhiteSpace($Content)) {
+        return $keys
+    }
+
+    foreach ($line in ($Content -split "`r?`n")) {
+        $trimmed = $line.Trim()
+
+        if (-not $trimmed -or $trimmed.StartsWith('#') -or $trimmed.StartsWith('-')) {
+            continue
+        }
+
+        $candidate = ($trimmed -split '\s+')[0]
+        $candidate = ($candidate -split ';')[0]
+        $candidate = ($candidate -split '(?i)(===|==|~=|!=|<=|>=|<|>|@)')[0]
+        $key = Normalize-StataPackageKey -Name $candidate
+
+        if ($key) {
+            $keys.Add($key)
+        }
+    }
+
+    return $keys
+}
+
+function Get-FirstUseByPackageKey {
+    param(
+        [string]$RepoPath,
+        [string]$RequirementsFile,
+        [ScriptBlock]$ExtractKeys
+    )
+
+    $firstUse = @{}
+
+    if (-not (Test-Path -LiteralPath $RepoPath)) {
+        return $firstUse
+    }
+
+    $commitLines = @()
+
+    try {
+        $commitLines = git -C $RepoPath log --reverse --format="%H|%cs" -- $RequirementsFile 2>$null
+    }
+    catch {
+        return $firstUse
+    }
+
+    foreach ($commitLine in $commitLines) {
+        if (-not $commitLine) {
+            continue
+        }
+
+        $parts = $commitLine -split '\|', 2
+
+        if ($parts.Count -ne 2) {
+            continue
+        }
+
+        $commitHash = $parts[0]
+        $commitDate = $parts[1]
+
+        $content = $null
+
+        try {
+            $content = git -C $RepoPath show "$commitHash`:$RequirementsFile" 2>$null | Out-String
+        }
+        catch {
+            continue
+        }
+
+        $keys = & $ExtractKeys $content
+
+        foreach ($key in $keys) {
+            if ($key -and -not $firstUse.ContainsKey($key)) {
+                $firstUse[$key] = $commitDate
+            }
+        }
+    }
+
+    return $firstUse
+}
+
+
 function Ensure-Windows {
     $isWindowsPlatform = $IsWindows
 
@@ -98,6 +203,7 @@ function Format-Row {
     param(
         [string]$Package,
         [string]$Version = "",
+        [string]$DateWhenPackageFirstUsed = "",
         [string]$Description = "",
         [string]$Location = "",
         [string]$Url = "",
@@ -120,6 +226,7 @@ function Format-Row {
     $columns = @(
         $packageValue,
         $versionValue,
+        $DateWhenPackageFirstUsed,
         'Stata',
         'Reviewer',
         'Installer',
@@ -242,6 +349,8 @@ else {
     Write-Warning $missingManifestMessage
 }
 
+$firstUseByKey = Get-FirstUseByPackageKey -RepoPath $ApprovedPackagesRepo -RequirementsFile $RequirementsHistoryFile -ExtractKeys ${function:Get-StataHistoryKeysFromRequirements}
+
 $rows = New-Object System.Collections.Generic.List[string]
 $copySucceeded = $false
 $clipboardAttempted = $false
@@ -264,7 +373,10 @@ foreach ($ado in Get-AdoFiles -BasePath $SharedAdo) {
     $hashValue = Get-PropertyValue -Object $hashLookup -Name $relativePath
     if (-not $hashValue) { $hashValue = "" }
 
-    $rows.Add((Format-Row -Package $name -Version $version -Description $description -Location $location -Hash $hashValue)) | Out-Null
+    $packageKey = Normalize-StataPackageKey -Name $name
+    $dateWhenPackageFirstUsed = if ($packageKey -and $firstUseByKey.ContainsKey($packageKey)) { $firstUseByKey[$packageKey] } else { "" }
+
+    $rows.Add((Format-Row -Package $name -Version $version -DateWhenPackageFirstUsed $dateWhenPackageFirstUsed -Description $description -Location $location -Hash $hashValue)) | Out-Null
 }
 
 if ($rows.Count -gt 0) {

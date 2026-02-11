@@ -98,6 +98,218 @@ Ensure-Windows
 
 $pipMirrorPath = "C:\admin\pip_mirror"
 $integrityBaselinePath = Join-Path -Path $pipMirrorPath -ChildPath "integrity-baseline.json"
+$approvedPackagesRepo = "C:\admin\approved-packages"
+$requirementsHistoryFile = "pip_requirements_multi_version.txt"
+
+function Normalize-PipPackageKey {
+    param(
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return ""
+    }
+
+    $normalized = $Name.Trim().ToLowerInvariant()
+    $normalized = [regex]::Replace($normalized, '[-_.]+', '-')
+    return $normalized
+}
+
+function Get-PipHistoryKeysFromRequirements {
+    param(
+        [string]$Content
+    )
+
+    $keys = New-Object System.Collections.Generic.List[string]
+    if ([string]::IsNullOrEmpty($Content)) {
+        return $keys
+    }
+
+    $lines = $Content -split "`r?`n"
+
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+
+        if (-not $trimmed -or $trimmed.StartsWith('#')) {
+            continue
+        }
+
+        if ($trimmed.StartsWith('-')) {
+            continue
+        }
+
+        $candidate = ($trimmed -split '\s+')[0]
+        if (-not $candidate) {
+            continue
+        }
+
+        $candidate = ($candidate -split ';')[0]
+        $candidate = ($candidate -split '\[')[0]
+        $candidate = ($candidate -split '(?i)(===|==|~=|!=|<=|>=|<|>|@)')[0]
+
+        $key = Normalize-PipPackageKey -Name $candidate
+        if ($key) {
+            $keys.Add($key)
+        }
+    }
+
+    return $keys
+}
+
+function Get-FirstUseByPackageKey {
+    param(
+        [string]$RepoPath,
+        [string]$RequirementsFile,
+        [ScriptBlock]$ExtractKeys
+    )
+
+    $firstUse = @{}
+
+    if (-not (Test-Path -LiteralPath $RepoPath)) {
+        return $firstUse
+    }
+
+    try {
+        $commitLines = git -C $RepoPath log --reverse --format="%H|%cs" -- $RequirementsFile 2>$null
+    }
+    catch {
+        return $firstUse
+    }
+
+    foreach ($commitLine in $commitLines) {
+        if (-not $commitLine) {
+            continue
+        }
+
+        $parts = $commitLine -split '\|', 2
+        if ($parts.Count -ne 2) {
+            continue
+        }
+
+        $commitHash = $parts[0]
+        $commitDate = $parts[1]
+
+        $content = $null
+        try {
+            $content = git -C $RepoPath show "$commitHash`:$RequirementsFile" 2>$null | Out-String
+        }
+        catch {
+            continue
+        }
+
+        $keys = & $ExtractKeys $content
+        foreach ($key in $keys) {
+            if ($key -and -not $firstUse.ContainsKey($key)) {
+                $firstUse[$key] = $commitDate
+            }
+        }
+    }
+
+    return $firstUse
+}
+
+function ConvertFrom-WheelMetadata {
+    param(
+        [System.IO.FileInfo]$File,
+        [string]$Hash
+    )
+
+    $whlFile = $File.FullName
+
+    try {
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($whlFile)
+        $metadataEntry = $zip.Entries | Where-Object {
+            $_.FullName -match '\.dist-info/METADATA$'
+        } | Select-Object -First 1
+
+        if (-not $metadataEntry) {
+            $zip.Dispose()
+            return $null
+        }
+
+        $stream = $metadataEntry.Open()
+        $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
+        $content = $reader.ReadToEnd()
+        $reader.Close()
+        $stream.Close()
+        $zip.Dispose()
+
+        $name = ""
+        $version = ""
+        $requiresPython = ""
+        $summary = ""
+        $homepage = ""
+
+        $content -split "`n" | ForEach-Object {
+            $line = $_
+            if ($line -match "^Name:\s*(.+)$") {
+                $name = $Matches[1].Trim()
+            }
+            elseif ($line -match "^Version:\s*(.+)$") {
+                $version = $Matches[1].Trim()
+            }
+            elseif ($line -match "^Requires-Python:\s*(.+)$") {
+                $requiresPython = $Matches[1].Trim()
+            }
+            elseif ($line -match "^Summary:\s*(.+)$") {
+                $summary = $Matches[1].Trim()
+            }
+            elseif ($line -match "^Home-page:\s*(.+)$") {
+                $homepage = $Matches[1].Trim()
+            }
+        }
+
+        if (-not $name -or -not $version) {
+            return $null
+        }
+
+        return [PSCustomObject]@{
+            Name = $name
+            Version = $version
+            RequiresPython = $requiresPython
+            Summary = $summary
+            Homepage = $homepage
+            Hash = $Hash
+        }
+    }
+    catch {
+        Write-Error "Failed to process $whlFile : $_"
+        return $null
+    }
+}
+
+function ConvertFrom-SourceArchiveName {
+    param(
+        [System.IO.FileInfo]$File,
+        [string]$Hash
+    )
+
+    $archiveName = $File.Name
+    $baseName = $File.BaseName
+
+    if ($archiveName -like '*.tar.gz') {
+        $baseName = $archiveName.Substring(0, $archiveName.Length - 7)
+    }
+    elseif ($archiveName -like '*.tar.bz2') {
+        $baseName = $archiveName.Substring(0, $archiveName.Length - 8)
+    }
+    elseif ($archiveName -like '*.tar.xz') {
+        $baseName = $archiveName.Substring(0, $archiveName.Length - 7)
+    }
+
+    if ($baseName -notmatch '^(?<name>.+)-(?<version>\d[^\s]*)$') {
+        return $null
+    }
+
+    return [PSCustomObject]@{
+        Name = $Matches['name']
+        Version = $Matches['version']
+        RequiresPython = ""
+        Summary = ""
+        Homepage = ""
+        Hash = $Hash
+    }
+}
 
 if (-not (Test-Path $pipMirrorPath)) {
     Write-Error "Pip mirror directory not found: $pipMirrorPath"
@@ -129,67 +341,33 @@ if (Test-Path $integrityBaselinePath) {
     }
 }
 
-$packageInfo = Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" | ForEach-Object {
-    $whlFile = $_.FullName
-    $filename = $_.BaseName
+$firstUseByKey = Get-FirstUseByPackageKey -RepoPath $approvedPackagesRepo -RequirementsFile $requirementsHistoryFile -ExtractKeys ${function:Get-PipHistoryKeysFromRequirements}
+
+$wheelRows = Get-ChildItem -Path $pipMirrorPath -Filter "*.whl" -File | ForEach-Object {
     $hash = $hashByFilename[$_.Name]
+    ConvertFrom-WheelMetadata -File $_ -Hash $hash
+}
 
-    try {
-        # Open the wheel file directly as a ZIP archive
-        $zip = [System.IO.Compression.ZipFile]::OpenRead($whlFile)
+$sourceRows = Get-ChildItem -Path $pipMirrorPath -File | Where-Object {
+    $_.Name -match '\.(tar\.gz|tar\.bz2|tar\.xz|tgz|zip)$' -and $_.Extension -ne '.whl'
+} | ForEach-Object {
+    $hash = $hashByFilename[$_.Name]
+    ConvertFrom-SourceArchiveName -File $_ -Hash $hash
+}
 
-        # Find the METADATA file inside the *.dist-info directory
-        $metadataEntry = $zip.Entries | Where-Object {
-            $_.FullName -match '\.dist-info/METADATA$'
-        } | Select-Object -First 1
+$packageInfo = @($wheelRows + $sourceRows) | Where-Object { $_ } | ForEach-Object {
+    $name = $_.Name
+    $version = $_.Version
+    $packageKey = Normalize-PipPackageKey -Name $name
+    $dateWhenFirstUsed = if ($packageKey -and $firstUseByKey.ContainsKey($packageKey)) { $firstUseByKey[$packageKey] } else { "" }
+    $requiresPython = $_.RequiresPython
+    $summary = $_.Summary
+    $homepage = $_.Homepage
+    $hash = $_.Hash
+    $location = $pipMirrorPath
 
-        if ($metadataEntry) {
-            # Read the METADATA file content directly from the archive
-            $stream = $metadataEntry.Open()
-            $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
-            $content = $reader.ReadToEnd()
-            $reader.Close()
-            $stream.Close()
-
-            # Initialize metadata fields
-            $name = ""
-            $version = ""
-            $requiresPython = ""
-            $summary = ""
-            $homepage = ""
-
-            # Parse the METADATA content
-            $content -split "`n" | ForEach-Object {
-                $line = $_
-                if ($line -match "^Name:\s*(.+)$") {
-                    $name = $Matches[1].Trim()
-                }
-                elseif ($line -match "^Version:\s*(.+)$") {
-                    $version = $Matches[1].Trim()
-                }
-                elseif ($line -match "^Requires-Python:\s*(.+)$") {
-                    $requiresPython = $Matches[1].Trim()
-                }
-                elseif ($line -match "^Summary:\s*(.+)$") {
-                    $summary = $Matches[1].Trim()
-                }
-                elseif ($line -match "^Home-page:\s*(.+)$") {
-                    $homepage = $Matches[1].Trim()
-                }
-            }
-
-            if ($name -and $version) {
-                $location = $pipMirrorPath
-                # Output format: Name, Version, Requires-Python, Source, Reviewer, Installer, Summary, Home-page, Location, Hash
-                "$name`t$version`t$requiresPython`tPyPi`tReviewer`tInstaller`t$summary`t$homepage`t$location`t$hash"
-            }
-        }
-
-        $zip.Dispose()
-    }
-    catch {
-        Write-Error "Failed to process $whlFile : $_"
-    }
+    # Output format: Name, Version, DateWhenPackageFirstUsed, Requires-Python, Source, Reviewer, Installer, Summary, Home-page, Location, Hash
+    "$name`t$version`t$dateWhenFirstUsed`t$requiresPython`tPyPi`tReviewer`tInstaller`t$summary`t$homepage`t$location`t$hash"
 }
 
 if ($packageInfo) {
