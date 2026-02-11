@@ -17,8 +17,106 @@ get_script_dir <- function() {
 }
 
 default_mirror <- normalizePath("C:/admin/r_mirror", winslash = "\\", mustWork = FALSE)
+approved_packages_repo <- "C:/admin/approved-packages"
+requirements_history_file <- "r_requirements.txt"
 primary_library <- function() {
   normalizePath(.Library, winslash = "\\", mustWork = FALSE)
+}
+
+normalize_package_key <- function(name) {
+  if (is.null(name) || is.na(name) || !nzchar(name)) {
+    return("")
+  }
+
+  tolower(trimws(name))
+}
+
+extract_history_keys <- function(lines) {
+  if (!length(lines)) {
+    return(character(0))
+  }
+
+  keys <- character(0)
+
+  for (line in lines) {
+    trimmed <- trimws(line)
+
+    if (!nzchar(trimmed) || startsWith(trimmed, "#") || startsWith(trimmed, "-")) {
+      next
+    }
+
+    candidate <- strsplit(trimmed, "\\s+")[[1]][1]
+    candidate <- strsplit(candidate, ";", fixed = TRUE)[[1]][1]
+    candidate <- strsplit(candidate, "(?i)(===|==|~=|!=|<=|>=|<|>|@)", perl = TRUE)[[1]][1]
+    key <- normalize_package_key(candidate)
+
+    if (nzchar(key)) {
+      keys <- c(keys, key)
+    }
+  }
+
+  unique(keys)
+}
+
+load_first_use_dates <- function(repo_path, requirements_file) {
+  first_use <- character(0)
+
+  if (!dir.exists(repo_path)) {
+    return(first_use)
+  }
+
+  commit_lines <- tryCatch(
+    system2(
+      "git",
+      c("-C", repo_path, "log", "--reverse", "--format=%H|%cs", "--", requirements_file),
+      stdout = TRUE,
+      stderr = FALSE
+    ),
+    error = function(e) character(0)
+  )
+
+  if (!length(commit_lines)) {
+    return(first_use)
+  }
+
+  for (commit_line in commit_lines) {
+    if (!nzchar(commit_line)) {
+      next
+    }
+
+    parts <- strsplit(commit_line, "\\|", fixed = FALSE)[[1]]
+
+    if (length(parts) < 2) {
+      next
+    }
+
+    commit_hash <- parts[1]
+    commit_date <- parts[2]
+
+    history_lines <- tryCatch(
+      system2(
+        "git",
+        c("-C", repo_path, "show", sprintf("%s:%s", commit_hash, requirements_file)),
+        stdout = TRUE,
+        stderr = FALSE
+      ),
+      error = function(e) character(0)
+    )
+
+    if (!length(history_lines)) {
+      next
+    }
+
+    keys <- extract_history_keys(history_lines)
+
+    for (key in keys) {
+      if (!key %in% names(first_use)) {
+        first_use[key] <- commit_date
+      }
+    }
+  }
+
+  first_use
 }
 
 ensure_windows <- function() {
@@ -204,11 +302,18 @@ print_report <- function(mirror_path) {
   cran_metadata <- load_cran_metadata(packages)
 
   integrity_hashes <- load_integrity_manifest(mirror_path)
+  first_use_by_key <- load_first_use_dates(approved_packages_repo, requirements_history_file)
 
   for (row in seq_len(nrow(matching))) {
     entry <- matching[row, ]
     name <- entry$Package
     version <- entry$Version
+    package_key <- normalize_package_key(name)
+    date_when_package_first_used <- if (nzchar(package_key) && package_key %in% names(first_use_by_key)) {
+      first_use_by_key[[package_key]]
+    } else {
+      ""
+    }
     url <- first_non_empty(
       c(
         first_non_empty(strsplit(safe_field(entry, "URL"), "[,\n ]")[[1]]),
@@ -236,7 +341,7 @@ print_report <- function(mirror_path) {
       ""
     }
 
-    cat(sprintf("%s\t%s\tCRAN\tReviewer\tInstaller\t%s\t%s\t%s\t%s\n", name, version, summary, url, location, hash))
+    cat(sprintf("%s\t%s\t%s\tCRAN\tReviewer\tInstaller\t%s\t%s\t%s\t%s\n", name, version, date_when_package_first_used, summary, url, location, hash))
   }
 }
 
