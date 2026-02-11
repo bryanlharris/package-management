@@ -16,7 +16,6 @@ get_script_dir <- function() {
   normalizePath(dirname(sub(file_arg, "", file_args[1])), winslash = "\\", mustWork = TRUE)
 }
 
-default_requirements <- file.path(get_script_dir(), "r_requirements.txt")
 default_mirror <- normalizePath("C:/admin/r_mirror", winslash = "\\", mustWork = FALSE)
 primary_library <- function() {
   normalizePath(.Library, winslash = "\\", mustWork = FALSE)
@@ -26,17 +25,6 @@ ensure_windows <- function() {
   if (!identical(tolower(Sys.info()[["sysname"]]), "windows")) {
     stop("This script is intended to run on Windows hosts only.")
   }
-}
-
-read_requirements <- function(path) {
-  if (!file.exists(path)) {
-    stop(sprintf("Missing requirements file at: %s", path))
-  }
-
-  entries <- readLines(path, warn = FALSE)
-  entries <- trimws(entries)
-  entries <- entries[entries != "" & !grepl("^#", entries)]
-  unique(entries)
 }
 
 prepare_repos <- function() {
@@ -197,7 +185,7 @@ load_integrity_manifest <- function(base_path) {
   stats::setNames(hashes, basename(relative_paths))
 }
 
-print_report <- function(requirements_path, mirror_path) {
+print_report <- function(mirror_path) {
   ensure_windows()
   mirror <- mirror_dir(mirror_path)
 
@@ -252,4 +240,4 @@ print_report <- function(requirements_path, mirror_path) {
   }
 }
 
-print_report(default_requirements, default_mirror)
+print_report(default_mirror)
