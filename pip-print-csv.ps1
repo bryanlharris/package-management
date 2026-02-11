@@ -138,7 +138,7 @@ function Get-PipHistoryKeysFromRequirements {
             continue
         }
 
-        $candidate = ($trimmed -split '\s+')[0]
+        $candidate = [regex]::Replace($trimmed, '^3\.\d+\s*:\s*', '')
         if (-not $candidate) {
             continue
         }
@@ -146,6 +146,11 @@ function Get-PipHistoryKeysFromRequirements {
         $candidate = ($candidate -split ';')[0]
         $candidate = ($candidate -split '\[')[0]
         $candidate = ($candidate -split '(?i)(===|==|~=|!=|<=|>=|<|>|@)')[0]
+        $candidate = $candidate.Trim()
+
+        if (-not $candidate -or $candidate -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]*$') {
+            continue
+        }
 
         $key = Normalize-PipPackageKey -Name $candidate
         if ($key) {
