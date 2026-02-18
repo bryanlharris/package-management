@@ -2,8 +2,8 @@ $originalLocation = Get-Location
 $pipIniPath = "C:\ProgramData\pip\pip.ini"
 $pipIniDisabledPath = "$pipIniPath.disabled"
 $pipIniBackedUp = $false
-$pipNoIndexOriginalValue = $null
-$pipNoIndexWasDefined = $false
+$pipNoIndexProcessOriginalValue = $null
+$pipNoIndexProcessWasDefined = $false
 
 function Restore-PipIni {
     if (-not $pipIniBackedUp) { return }
@@ -14,17 +14,17 @@ function Restore-PipIni {
 }
 
 function Restore-PipNoIndex {
-    if ($pipNoIndexWasDefined) {
+    if ($pipNoIndexProcessWasDefined) {
         [System.Environment]::SetEnvironmentVariable(
             "PIP_NO_INDEX",
-            $pipNoIndexOriginalValue,
-            "Machine"
+            $pipNoIndexProcessOriginalValue,
+            "Process"
         )
     } else {
         [System.Environment]::SetEnvironmentVariable(
             "PIP_NO_INDEX",
             $null,
-            "Machine"
+            "Process"
         )
     }
 }
@@ -32,16 +32,14 @@ function Restore-PipNoIndex {
 function Exit-WithCleanup {
     param([string]$message)
 
-    if ($message) { Write-Error $message }
     if ($message) {
         Write-FailureEvent -Message $message
     } else {
         Write-FailureEvent -Message "pip-download-packages.ps1 FAILED without a specific error message."
+        $message = "pip-download-packages.ps1 FAILED without a specific error message."
     }
-    Restore-PipIni
-    Restore-PipNoIndex
-    Set-Location $originalLocation
-    exit 1
+
+    throw $message
 }
 
 function Ensure-PyLauncher {
@@ -211,6 +209,7 @@ function Invoke-DownloadPhase {
     return $failures
 }
 
+try {
 Ensure-PyLauncher
 
 $supportedPythonVersions = @('3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13')
@@ -250,13 +249,13 @@ if (Test-Path -Path $pipIniPath -PathType Leaf) {
     $pipIniBackedUp = $true
 }
 
-# Disable machine-level pip lockdown override temporarily
-$pipNoIndexOriginalValue = [System.Environment]::GetEnvironmentVariable("PIP_NO_INDEX", "Machine")
-$pipNoIndexWasDefined = $null -ne $pipNoIndexOriginalValue
+# Disable process-level pip no-index override temporarily
+$pipNoIndexProcessOriginalValue = [System.Environment]::GetEnvironmentVariable("PIP_NO_INDEX", "Process")
+$pipNoIndexProcessWasDefined = $null -ne $pipNoIndexProcessOriginalValue
 [System.Environment]::SetEnvironmentVariable(
     "PIP_NO_INDEX",
     $null,
-    "Machine"
+    "Process"
 )
 
 New-Item -Path "C:\admin\pip_mirror" -ItemType Directory -Force | Out-Null
@@ -385,6 +384,8 @@ Write-DownloadSummaryEvent `
     -PostRetryFailureCount $postRetryFailureCount `
     -MissingArtifactCount $missingArtifactCount
 
-Restore-PipIni
-Restore-PipNoIndex
-Set-Location $originalLocation
+} finally {
+    Restore-PipIni
+    Restore-PipNoIndex
+    Set-Location $originalLocation
+}
