@@ -2,12 +2,30 @@ $originalLocation = Get-Location
 $pipIniPath = "C:\ProgramData\pip\pip.ini"
 $pipIniDisabledPath = "$pipIniPath.disabled"
 $pipIniBackedUp = $false
+$pipNoIndexOriginalValue = $null
+$pipNoIndexWasDefined = $false
 
 function Restore-PipIni {
     if (-not $pipIniBackedUp) { return }
 
     if (Test-Path -Path $pipIniDisabledPath -PathType Leaf) {
         Rename-Item $pipIniDisabledPath $pipIniPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Restore-PipNoIndex {
+    if ($pipNoIndexWasDefined) {
+        [System.Environment]::SetEnvironmentVariable(
+            "PIP_NO_INDEX",
+            $pipNoIndexOriginalValue,
+            "Machine"
+        )
+    } else {
+        [System.Environment]::SetEnvironmentVariable(
+            "PIP_NO_INDEX",
+            $null,
+            "Machine"
+        )
     }
 }
 
@@ -21,6 +39,7 @@ function Exit-WithCleanup {
         Write-FailureEvent -Message "pip-download-packages.ps1 FAILED without a specific error message."
     }
     Restore-PipIni
+    Restore-PipNoIndex
     Set-Location $originalLocation
     exit 1
 }
@@ -231,6 +250,15 @@ if (Test-Path -Path $pipIniPath -PathType Leaf) {
     $pipIniBackedUp = $true
 }
 
+# Disable machine-level pip lockdown override temporarily
+$pipNoIndexOriginalValue = [System.Environment]::GetEnvironmentVariable("PIP_NO_INDEX", "Machine")
+$pipNoIndexWasDefined = $null -ne $pipNoIndexOriginalValue
+[System.Environment]::SetEnvironmentVariable(
+    "PIP_NO_INDEX",
+    $null,
+    "Machine"
+)
+
 New-Item -Path "C:\admin\pip_mirror" -ItemType Directory -Force | Out-Null
 Set-Location "C:\admin\pip_mirror"
 $outputDir = "C:\admin\pip_mirror"
@@ -358,4 +386,5 @@ Write-DownloadSummaryEvent `
     -MissingArtifactCount $missingArtifactCount
 
 Restore-PipIni
+Restore-PipNoIndex
 Set-Location $originalLocation
